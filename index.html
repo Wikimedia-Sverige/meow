@@ -1,0 +1,289 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>MEOW - Metabase Educational Open Works</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+
+  <script src="https://tools-static.wmflabs.org/cdnjs/ajax/libs/jquery/3.7.1/jquery.min.js"></script>
+
+  <link rel="stylesheet" href="assets/css/style.css">
+</head>
+<body>
+
+<header class="site-header">
+  <div class="container header-inner">
+    <div class="brand-block">
+      <h1 id="brandTitle">MEOW</h1>
+      <h2>Metabase Educational Open Works</h2>
+      <p id="dataUpdatedAt" class="data-updated-at">Data last updated: loading…</p>
+    </div>
+    <div class="search-panel">
+      <input id="searchInput" type="search" placeholder="Search resources" aria-label="Search resources" autocomplete="off">
+      <button id="clearSearch" type="button">Clear</button>
+    </div>
+
+    <nav class="site-nav" aria-label="Site navigation">
+      <button type="button" id="navAbout" class="nav-link">About</button>
+      <a href="https://github.com/wikimedia-sverige/meow" class="nav-link" target="_blank" rel="noopener">GitHub</a>
+      <button type="button" id="navContribute" class="nav-link">Contribute to Metabase</button>
+    </nav>
+  </div>
+</header>
+
+<main id="mainContent" class="container app-layout">
+
+  <aside class="filters">
+    <div class="filters-header">
+      <h2>Filters</h2>
+      <button id="resetFilters" type="button" class="reset-button">Reset</button>
+    </div>
+
+    <details class="filter-group collapsible-filter-group" open>
+      <summary>
+        <span class="collapsible-filter-title">Resource type</span>
+        <span id="resourceTypeCount" class="resource-type-count collapsible-filter-count"></span>
+      </summary>
+      <div class="collapsible-filter-content">
+        <div id="resourceTypeFilters" class="resource-type-filter-list"></div>
+      </div>
+    </details>
+
+    <div class="filter-group">
+      <label for="languageFilter">Language</label>
+      <select id="languageFilter">
+        <option value="">All languages</option>
+      </select>
+    </div>
+
+    <details class="filter-group collapsible-filter-group" open>
+      <summary>
+        <span class="collapsible-filter-title">Publication year</span>
+        <span id="yearFilterCount" class="collapsible-filter-count"></span>
+      </summary>
+      <div class="collapsible-filter-content">
+        <div id="yearFilters" class="year-filter-list"></div>
+      </div>
+    </details>
+
+    <div class="filter-group improve-data-group">
+      <h3>Improve data</h3>
+
+      <label class="checkbox-row">
+        <input type="checkbox" id="missingDescriptionFilter">
+        <span class="checkbox-label">No description</span>
+      </label>
+
+      <label class="checkbox-row">
+        <input type="checkbox" id="missingSubjectFilter">
+        <span class="checkbox-label">No keywords</span>
+      </label>
+
+      <label class="checkbox-row">
+        <input type="checkbox" id="missingLanguageFilter">
+        <span class="checkbox-label">No language</span>
+      </label>
+
+      <label class="checkbox-row">
+        <input type="checkbox" id="missingPublicationDateFilter">
+        <span class="checkbox-label">No publication date</span>
+      </label>
+
+      <label class="checkbox-row">
+        <input type="checkbox" id="hasUnlinkedAuthorFilter">
+        <span class="checkbox-label">Unlinked author(s)</span>
+      </label>
+    </div>
+
+    <details class="filter-group collapsible-filter-group">
+      <summary>
+        <span class="collapsible-filter-title">Publishers</span>
+        <span id="publisherCount" class="publisher-count collapsible-filter-count"></span>
+      </summary>
+      <div class="collapsible-filter-content">
+        <input id="publisherSearchInput" class="publisher-search" type="search" placeholder="Search publishers">
+        <div id="publisherFilters" class="publisher-filter-list"></div>
+      </div>
+    </details>
+
+    <details class="filter-group collapsible-filter-group">
+      <summary>
+        <span class="collapsible-filter-title">Authors</span>
+        <span id="authorCount" class="author-count collapsible-filter-count"></span>
+      </summary>
+      <div class="collapsible-filter-content">
+        <input id="authorSearchInput" class="author-search" type="search" placeholder="Search authors">
+        <div id="authorFilters" class="author-filter-list"></div>
+      </div>
+    </details>
+  </aside>
+
+  <section class="results-area" aria-label="Resource results">
+    <div id="summaryStats" class="summary-stats"></div>
+
+    <div class="results-toolbar">
+      <p id="resultCount" aria-live="polite">Loading resources…</p>
+
+      <div class="results-toolbar-actions">
+        <div class="view-toggle" role="group" aria-label="View mode">
+          <button type="button" id="viewGrid" class="view-toggle-button is-active" aria-label="Grid view" aria-pressed="true" title="Grid view">
+            <svg width="15" height="15" viewBox="0 0 15 15" fill="none" aria-hidden="true">
+              <rect x="0" y="0" width="6" height="6" rx="1.5" fill="currentColor"/>
+              <rect x="9" y="0" width="6" height="6" rx="1.5" fill="currentColor"/>
+              <rect x="0" y="9" width="6" height="6" rx="1.5" fill="currentColor"/>
+              <rect x="9" y="9" width="6" height="6" rx="1.5" fill="currentColor"/>
+            </svg>
+          </button>
+          <button type="button" id="viewList" class="view-toggle-button" aria-label="List view" aria-pressed="false" title="List view">
+            <svg width="15" height="15" viewBox="0 0 15 15" fill="none" aria-hidden="true">
+              <rect x="0" y="1" width="15" height="2.5" rx="1.25" fill="currentColor"/>
+              <rect x="0" y="6.25" width="15" height="2.5" rx="1.25" fill="currentColor"/>
+              <rect x="0" y="11.5" width="15" height="2.5" rx="1.25" fill="currentColor"/>
+            </svg>
+          </button>
+        </div>
+        <!--
+          Copy link button — copies location.href to the clipboard.
+          The URL always reflects the current filter state, so this link
+          can be shared with anyone to reproduce exactly this view.
+        -->
+        <button id="copyLinkButton" type="button" class="copy-link-button">
+          Copy link
+        </button>
+
+        <!--
+          Export button — downloads all filtered results (every page) as a CSV.
+          Disabled while data is still loading.
+        -->
+        <button id="exportCsvButton" type="button" class="export-csv-button" disabled>
+          Export CSV
+        </button>
+
+        <select id="sortSelect">
+          <option value="title">Sort by title</option>
+          <option value="date-desc">Newest first</option>
+          <option value="date-asc">Oldest first</option>
+          <option value="type">Sort by resource type</option>
+          <option value="id-asc">By Metabase creation (oldest first)</option>
+          <option value="id-desc">By Metabase creation (newest first)</option>
+        </select>
+      </div>
+    </div>
+
+    <div id="statusMessage"></div>
+    <div id="activeFilters"></div>
+    <div id="results" class="card-grid" aria-live="polite" aria-busy="true"></div>
+    <nav id="pagination" class="pagination" aria-label="Results pages"></nav>
+  </section>
+
+  <aside class="subject-panel">
+    <div class="subject-panel-header">
+      <h2>Keywords</h2>
+      <p id="subjectCount" class="subject-count"></p>
+    </div>
+
+    <input id="subjectSearchInput" class="subject-search" type="search" placeholder="Search keywords">
+
+    <div id="subjectFilters" class="subject-filter-list"></div>
+  </aside>
+
+</main>
+
+<div id="languageInsightsModal" class="modal-backdrop" hidden>
+  <div class="modal-dialog" role="dialog" aria-modal="true" aria-labelledby="languageInsightsTitle">
+    <div class="modal-header">
+      <div>
+        <p class="modal-kicker">Dataset insight</p>
+        <h2 id="languageInsightsTitle">Languages in MEOW</h2>
+      </div>
+      <button id="closeLanguageInsights" type="button" class="modal-close" aria-label="Close language insights">×</button>
+    </div>
+
+    <div id="languageInsightsContent" class="language-modal-content"></div>
+  </div>
+</div>
+
+<div id="keywordInsightsModal" class="modal-backdrop" hidden>
+  <div class="modal-dialog" role="dialog" aria-modal="true" aria-labelledby="keywordInsightsTitle">
+    <div class="modal-header">
+      <div>
+        <p class="modal-kicker">Dataset insight</p>
+        <h2 id="keywordInsightsTitle">Keywords in MEOW</h2>
+      </div>
+      <button id="closeKeywordInsights" type="button" class="modal-close" aria-label="Close keyword insights">×</button>
+    </div>
+
+    <div id="keywordInsightsContent" class="language-modal-content"></div>
+  </div>
+</div>
+
+<!-- About modal -->
+<div id="aboutModal" class="modal-backdrop" hidden>
+  <div class="modal-dialog modal-dialog--narrow" role="dialog" aria-modal="true" aria-labelledby="aboutModalTitle">
+    <div class="modal-header">
+      <div>
+        <p class="modal-kicker">About</p>
+        <h2 id="aboutModalTitle">About MEOW</h2>
+      </div>
+      <button id="closeAboutModal" type="button" class="modal-close" aria-label="Close">×</button>
+    </div>
+<div class="modal-body">
+
+  <div class="about-org-block">
+    <img src="assets/logo.png" width="100" alt="Wikimedia Sverige" class="about-logo">
+    <p>MEOW is developed by <a href="https://wikimedia.se" target="_blank" rel="noopener">Wikimedia Sverige</a> as part of the <a href="https://meta.wikimedia.org/wiki/Content_Partnerships_Hub" target="_blank" rel="noopener">Content Partnerships Hub</a> initiative.</p>
+  </div>
+
+  <h3>What is MEOW?</h3>
+  <p>MEOW is a tool to explore for educational resources cataloged in <a href="https://metabase.wikibase.cloud" target="_blank" rel="noopener">Metabase</a>, the Wikibase instance maintained by the Wikimedia movement for tracking open educational materials.</p>
+  <p>The catalog contains resources such as online courses, videos, guides, tutorials, slide decks, and articles, all freely available and relevant to Wikimedia-related learning.</p>
+  <p>Data is harvested from Metabase via SPARQL and refreshed regularly. Each resource links back to its Metabase item, where you can view full metadata and edit it if you have an account.</p>
+
+  <h3>Credits</h3>
+  <dl class="about-credits">
+    <dt>Developer</dt>
+    <dd>Alicia Fagerving, Wikimedia Sverige <a href="mailto:alicia.fagerving@wikimedia.se">alicia.fagerving@wikimedia.se</a></dd>
+    <dt>Testing</dt>
+    <dd>Andreas Kettelhoit, Wikimedia Sverige</dd>
+  </dl>
+
+</div>
+  </div>
+</div>
+
+<!-- How to contribute modal -->
+<div id="contributeModal" class="modal-backdrop" hidden>
+  <div class="modal-dialog modal-dialog--narrow" role="dialog" aria-modal="true" aria-labelledby="contributeModalTitle">
+    <div class="modal-header">
+      <div>
+        <p class="modal-kicker">Contributing</p>
+        <h2 id="contributeModalTitle">How to contribute to Metabase</h2>
+      </div>
+      <button id="closeContributeModal" type="button" class="modal-close" aria-label="Close">×</button>
+    </div>
+    <div class="modal-body">
+      <h3>Add or improve a resource</h3>
+      <p>Anyone with a Metabase account can add new resources or improve existing ones. Visit <a href="https://metabase.wikibase.cloud" target="_blank" rel="noopener">metabase.wikibase.cloud</a> and log in or create an account.</p>
+      <h3>What makes a good resource entry?</h3>
+      <ul>
+        <li><strong>Description</strong> - a summary of what the resource covers.</li>
+        <li><strong>Language</strong> - the language(s) the resource is available in.</li>
+        <li><strong>Keywords</strong> - relevant topics such as Wikidata, GLAM, open data, or artificial intelligence.</li>
+        <li><strong>Publisher</strong> - the organization or project that produced the resource.</li>
+        <li><strong>Publication date</strong> - when the resource was created or last updated.</li>
+        <li><strong>Links</strong> - where the resource can be accessed.</li>
+      </ul>
+      <h3>Use the <em>Improve data</em> filters</h3>
+      <p>The <em>Improve data</em> section in the left panel lets you filter for resources that are missing specific fields.</p>
+    </div>
+  </div>
+</div>
+
+<button id="jumpToTop" class="jump-to-top" aria-label="Back to top" title="Back to top">↑</button>
+
+<noscript>
+  <div class="noscript-message">MEOW needs JavaScript to load and filter the resource catalogue.</div>
+</noscript>
+<script src="assets/js/app.js"></script>
+</body>
+</html>
