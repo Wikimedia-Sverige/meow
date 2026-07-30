@@ -604,8 +604,9 @@ function normalizeResources(data) {
     var courseUrl           = resource.courseUrl || "";
     var commonsVideoPage    = normalizeCommonsFilePageUrl(resource.commonsVideoPage    || "");
     var commonsDocumentPage = normalizeCommonsFilePageUrl(resource.commonsDocumentPage || "");
+    var youtubeUrl          = getYoutubeUrl(resource.youtubeId);
     var wikiPageUrl         = getWikimediaPageUrl(resource.wikiPage);
-    var primaryUrl          = courseUrl || commonsVideoPage || commonsDocumentPage || wikiPageUrl;
+    var primaryUrl          = courseUrl || commonsVideoPage || commonsDocumentPage || youtubeUrl || wikiPageUrl;
 
     normalized.push({
       id:                   id,
@@ -619,6 +620,8 @@ function normalizeResources(data) {
       courseUrl:            courseUrl,
       commonsVideoPage:     commonsVideoPage,
       commonsDocumentPage:  commonsDocumentPage,
+      youtubeId:            resource.youtubeId || "",
+      youtubeUrl:           youtubeUrl,
       wikiPage:             resource.wikiPage || "",
       wikiPageUrl:          wikiPageUrl,
       metabaseUrl:          "https://metabase.wikibase.cloud/wiki/Item:" + id,
@@ -1125,6 +1128,9 @@ function renderLinkIcons(resource) {
   }
   if (resource.commonsDocumentPage) {
     html += linkIconButton(resource.commonsDocumentPage, "Open on Commons");
+  }
+  if (resource.youtubeUrl) {
+    html += linkIconButton(resource.youtubeUrl, "Open on YouTube");
   }
   if (resource.wikiPageUrl) {
     html += linkIconButton(resource.wikiPageUrl, "Open Wikimedia page");
@@ -1882,6 +1888,11 @@ function formatMonthYear(dateValue) {
 function getWikimediaPageUrl(wikiPageValue) {
   if (!wikiPageValue) { return ""; }
   return "https://meta.wikimedia.org/wiki/" + encodeURI(String(wikiPageValue).replace(/ /g, "_"));
+}
+
+function getYoutubeUrl(youtubeId) {
+  if (!youtubeId) { return ""; }
+  return "https://www.youtube.com/watch?v=" + encodeURIComponent(youtubeId);
 }
 
 function normalizeCommonsFilePageUrl(url) {

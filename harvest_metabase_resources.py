@@ -87,6 +87,7 @@ SELECT
   ?resourceType ?resourceTypeLabel
   ?author ?authorLabel
   ?courseUrl ?commonsVideoPage ?commonsDocumentPage
+  ?youtubeId
   ?wikiPage ?publicationDate
   ?publisher ?publisherLabel
   ?language ?languageLabel
@@ -102,6 +103,7 @@ WHERE {{
   OPTIONAL {{ ?resource wbt:P31 ?commonsVideoPage . }}
   OPTIONAL {{ ?resource wbt:P19 ?author . }}
   OPTIONAL {{ ?resource wbt:P22 ?commonsDocumentPage . }}
+  OPTIONAL {{ ?resource wbt:P59 ?youtubeId . }}
   OPTIONAL {{ ?resource wbt:P45 ?wikiPage . }}
   OPTIONAL {{ ?resource wbt:P18 ?publicationDate . }}
   OPTIONAL {{ ?resource wbt:P21 ?publisher . }}
@@ -215,6 +217,13 @@ def wikimedia_page_url(wiki_page_value: str) -> str:
     )
 
 
+def youtube_url(video_id: str) -> str:
+    """Build a youtube.com watch URL from a P59 YouTube video ID."""
+    if not video_id:
+        return ""
+    return "https://www.youtube.com/watch?v=" + quote(video_id, safe="")
+
+
 def get_primary_url(resource: Dict[str, Any]) -> str:
     """Return the most relevant external URL for a resource, or empty string."""
     if resource.get("courseUrl"):
@@ -223,6 +232,8 @@ def get_primary_url(resource: Dict[str, Any]) -> str:
         return resource["commonsVideoPage"]
     if resource.get("commonsDocumentPage"):
         return resource["commonsDocumentPage"]
+    if resource.get("youtubeId"):
+        return youtube_url(resource["youtubeId"])
     if resource.get("wikiPage"):
         return wikimedia_page_url(resource["wikiPage"])
     return ""
@@ -253,6 +264,7 @@ def parse_rows(rows: List[Dict[str, Any]], resource_type_id: str) -> List[Dict[s
                 "courseUrl":           value(row, "courseUrl"),
                 "commonsVideoPage":    value(row, "commonsVideoPage"),
                 "commonsDocumentPage": value(row, "commonsDocumentPage"),
+                "youtubeId":           value(row, "youtubeId"),
                 "wikiPage":            value(row, "wikiPage"),
                 "languages":           [],
                 "subjects":            [],
@@ -273,6 +285,7 @@ def parse_rows(rows: List[Dict[str, Any]], resource_type_id: str) -> List[Dict[s
             ("courseUrl",           "courseUrl"),
             ("commonsVideoPage",    "commonsVideoPage"),
             ("commonsDocumentPage", "commonsDocumentPage"),
+            ("youtubeId",           "youtubeId"),
             ("wikiPage",            "wikiPage"),
         ):
             if not resource.get(field):
