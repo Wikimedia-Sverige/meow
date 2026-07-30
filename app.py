@@ -220,6 +220,8 @@ def _apply_filters(
                 continue
 
         miss = r.get("missing", {})
+        if "title"          in missing_flags and not miss.get("title"):
+            continue
         if "description"    in missing_flags and not miss.get("description"):
             continue
         if "subject"        in missing_flags and not miss.get("mainSubject"):
@@ -445,8 +447,8 @@ def api_resources():
     publisher   publisher label (repeatable)
     author      author label (repeatable)
     event       conference/event label (repeatable)
-    missing     comma-separated flags: description, subject, language,
-                pubdate, author, event
+    missing     comma-separated flags: title, description, subject,
+                language, pubdate, author, event
     sort        title | date-desc | date-asc | type | id-asc | id-desc
     page        1-based page number (default 1)
     all         1 = return all results without pagination (for CSV export)

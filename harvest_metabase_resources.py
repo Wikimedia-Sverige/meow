@@ -86,6 +86,7 @@ PREFIX schema: <http://schema.org/>
 SELECT
   ?resource ?resourceLabel ?resourceDescription
   ?resourceType ?resourceTypeLabel
+  ?titleProperty
   ?author ?authorLabel
   ?courseUrl ?commonsVideoPage ?commonsDocumentPage
   ?youtubeId
@@ -100,6 +101,7 @@ WHERE {{
 
   ?resource wbt:P5 ?resourceType .
 
+  OPTIONAL {{ ?resource wbt:P8 ?titleProperty . }}
   OPTIONAL {{ ?resource wbt:P44 ?courseUrl . }}
   OPTIONAL {{ ?resource wbt:P31 ?commonsVideoPage . }}
   OPTIONAL {{ ?resource wbt:P19 ?author . }}
@@ -259,6 +261,7 @@ def parse_rows(rows: List[Dict[str, Any]], resource_type_id: str) -> List[Dict[s
             by_id[resource_id] = {
                 "id":                  resource_id,
                 "title":               value(row, "resourceLabel") or resource_id,
+                "titleProperty":       value(row, "titleProperty"),
                 "description":         value(row, "resourceDescription"),
                 "typeIds":             [type_id],
                 "publicationDate":     raw_date if is_real_date(raw_date) else "",
@@ -282,6 +285,7 @@ def parse_rows(rows: List[Dict[str, Any]], resource_type_id: str) -> List[Dict[s
 
         # Fill in scalar fields from later rows if the first row had them empty.
         for field, key in (
+            ("titleProperty",       "titleProperty"),
             ("description",         "resourceDescription"),
             ("courseUrl",           "courseUrl"),
             ("commonsVideoPage",    "commonsVideoPage"),
@@ -311,6 +315,7 @@ def parse_rows(rows: List[Dict[str, Any]], resource_type_id: str) -> List[Dict[s
 
         primary_url = get_primary_url(resource)
         resource["missing"] = {
+            "title":           not bool(resource["titleProperty"]),
             "description":     not bool(resource["description"]),
             "mainSubject":     len(resource["subjects"]) == 0,
             "publisher":       len(resource["publishers"]) == 0,

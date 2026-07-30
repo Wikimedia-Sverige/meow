@@ -74,6 +74,7 @@ var state = {
   eventSearch: "",
   events: [],
   maintenance: {
+    missingTitle: false,
     missingDescription: false,
     missingSubject: false,
     missingLanguage: false,
@@ -103,6 +104,7 @@ function readStateFromUrl() {
 
   var missingStr   = params.get("missing") || "";
   var missingFlags = missingStr ? missingStr.split(",") : [];
+  state.maintenance.missingTitle           = missingFlags.indexOf("title")          !== -1;
   state.maintenance.missingDescription     = missingFlags.indexOf("description")    !== -1;
   state.maintenance.missingSubject         = missingFlags.indexOf("subject")        !== -1;
   state.maintenance.missingLanguage        = missingFlags.indexOf("language")       !== -1;
@@ -138,6 +140,7 @@ function buildUrlParams() {
   $.each(state.events,     function (i, e) { params.append("event",     e); });
 
   var missingFlags = [];
+  if (state.maintenance.missingTitle)           missingFlags.push("title");
   if (state.maintenance.missingDescription)     missingFlags.push("description");
   if (state.maintenance.missingSubject)         missingFlags.push("subject");
   if (state.maintenance.missingLanguage)        missingFlags.push("language");
@@ -163,6 +166,7 @@ function syncUiToState() {
   $("#searchInput").val(state.search);
   $("#languageFilter").val(state.language);
   $("#sortSelect").val(state.sort);
+  $("#missingTitleFilter").prop("checked",            state.maintenance.missingTitle);
   $("#missingDescriptionFilter").prop("checked",      state.maintenance.missingDescription);
   $("#missingSubjectFilter").prop("checked",          state.maintenance.missingSubject);
   $("#missingLanguageFilter").prop("checked",         state.maintenance.missingLanguage);
@@ -465,6 +469,12 @@ $(function () {
     render();
   });
 
+  $("#missingTitleFilter").on("change", function () {
+    state.maintenance.missingTitle = $(this).is(":checked");
+    state.page = 1;
+    updateImproveDataCount();
+    render();
+  });
   $("#missingDescriptionFilter").on("change", function () {
     state.maintenance.missingDescription = $(this).is(":checked");
     state.page = 1;
@@ -549,6 +559,7 @@ function clearAllFilters() {
   state.publishers = [];
   state.authors = [];
   state.events = [];
+  state.maintenance.missingTitle          = false;
   state.maintenance.missingDescription    = false;
   state.maintenance.missingSubject        = false;
   state.maintenance.missingLanguage       = false;
@@ -636,6 +647,7 @@ function normalizeResources(data) {
       events:               resource.events     || [],
       eventIds:             resource.eventIds   || [],
       missing: {
+        title:           hasMissing(resource, "title",           !resource.titleProperty),
         description:     hasMissing(resource, "description",    !resource.description),
         mainSubject:     hasMissing(resource, "mainSubject",    !(resource.subjects   && resource.subjects.length)),
         publisher:       hasMissing(resource, "publisher",      !(resource.publishers && resource.publishers.length)),
@@ -1394,6 +1406,7 @@ function renderActiveFilters() {
   var hasAuthors    = state.authors.length > 0;
   var hasEvents     = state.events.length > 0;
   var hasMaint      =
+    state.maintenance.missingTitle          ||
     state.maintenance.missingDescription    ||
     state.maintenance.missingSubject        ||
     state.maintenance.missingLanguage       ||
@@ -1438,6 +1451,7 @@ function renderActiveFilters() {
   }
   if (hasMaint) {
     var labels = [];
+    if (state.maintenance.missingTitle)           { labels.push("missing title"); }
     if (state.maintenance.missingDescription)     { labels.push("missing description"); }
     if (state.maintenance.missingSubject)         { labels.push("missing keyword"); }
     if (state.maintenance.missingLanguage)        { labels.push("missing language"); }
@@ -1471,12 +1485,14 @@ function renderActiveFilters() {
     state.events = []; state.page = 1; syncEventFilters(); render();
   });
   $(".clear-maintenance-filter").on("click", function () {
+    state.maintenance.missingTitle          = false;
     state.maintenance.missingDescription    = false;
     state.maintenance.missingSubject        = false;
     state.maintenance.missingLanguage       = false;
     state.maintenance.missingPublicationDate = false;
     state.maintenance.missingAuthors        = false;
     state.page = 1;
+    $("#missingTitleFilter").prop("checked",           false);
     $("#missingDescriptionFilter").prop("checked",     false);
     $("#missingSubjectFilter").prop("checked",         false);
     $("#missingLanguageFilter").prop("checked",        false);
