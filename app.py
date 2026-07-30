@@ -156,6 +156,7 @@ def _apply_filters(
     subjects: Optional[List[str]] = None,
     publishers: Optional[List[str]] = None,
     authors: Optional[List[str]] = None,
+    events: Optional[List[str]] = None,
     missing_flags: Optional[set] = None,
     exclude: Optional[str] = None,
 ) -> List[Dict[str, Any]]:
@@ -163,13 +164,14 @@ def _apply_filters(
     Filter resources against the given criteria.
 
     exclude: one of "types", "language", "year", "subjects",
-             "publishers", "authors" — that dimension is skipped,
+             "publishers", "authors", "events" — that dimension is skipped,
              enabling context-aware facet counts (conjunctive faceted search).
     """
     types         = types         or []
     subjects      = subjects      or []
     publishers    = publishers    or []
     authors       = authors       or []
+    events        = events        or []
     missing_flags = missing_flags or set()
 
     result = []
@@ -212,6 +214,10 @@ def _apply_filters(
             if not _has_any(r.get("authors", []), authors):
                 continue
 
+        if exclude != "events" and events:
+            if not _has_any(r.get("events", []), events):
+                continue
+
         miss = r.get("missing", {})
         if "description"    in missing_flags and not miss.get("description"):
             continue
@@ -222,6 +228,8 @@ def _apply_filters(
         if "pubdate"        in missing_flags and not miss.get("publicationDate"):
             continue
         if "unlinkedauthor" in missing_flags and not miss.get("unlinkedAuthor"):
+            continue
+        if "event"          in missing_flags and not miss.get("event"):
             continue
 
         result.append(r)
@@ -316,6 +324,13 @@ def _count_authors(pool: List[Dict]) -> Dict[str, int]:
     for r in pool:
         for a in r.get("authors", []):
             c[a] += 1
+    return dict(c)
+
+def _count_events(pool: List[Dict]) -> Dict[str, int]:
+    c: Counter = Counter()
+    for r in pool:
+        for e in r.get("events", []):
+            c[e] += 1
     return dict(c)
 
 
@@ -428,8 +443,9 @@ def api_resources():
     subject     keyword/subject label (repeatable)
     publisher   publisher label (repeatable)
     author      author label (repeatable)
+    event       conference/event label (repeatable)
     missing     comma-separated flags: description, subject, language,
-                pubdate, unlinkedauthor
+                pubdate, unlinkedauthor, event
     sort        title | date-desc | date-asc | type | id-asc | id-desc
     page        1-based page number (default 1)
     all         1 = return all results without pagination (for CSV export)
@@ -442,6 +458,7 @@ def api_resources():
     subjects    = request.args.getlist("subject")
     publishers  = request.args.getlist("publisher")
     authors     = request.args.getlist("author")
+    events      = request.args.getlist("event")
     missing_str = request.args.get("missing", "")
     missing_flags = set(missing_str.split(",")) if missing_str else set()
     sort        = request.args.get("sort", "id-desc")
@@ -456,7 +473,7 @@ def api_resources():
     fkw: Dict[str, Any] = dict(
         q=q, types=types, language=language, year=year,
         subjects=subjects, publishers=publishers, authors=authors,
-        missing_flags=missing_flags,
+        events=events, missing_flags=missing_flags,
     )
 
     with _data_lock:
@@ -480,6 +497,7 @@ def api_resources():
         "subjects":   _count_subjects(  _apply_filters(resources, **fkw, exclude="subjects")),
         "publishers": _count_publishers(_apply_filters(resources, **fkw, exclude="publishers")),
         "authors":    _count_authors(   _apply_filters(resources, **fkw, exclude="authors")),
+        "events":     _count_events(    _apply_filters(resources, **fkw, exclude="events")),
     }
 
     if export_all:

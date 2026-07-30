@@ -29,6 +29,10 @@ APP_NAME = "MEOW"
 DATA_SCHEMA_VERSION = 1
 DEFAULT_USER_AGENT = "MEOWHarvester/1.0 (+https://metabase.wikibase.cloud/)"
 
+# instance of (P5) this Q-ID marks the top of a "used by / part of" chain
+# (P42 -> P17*) as a conference, e.g. Wikimania or GLAM Wiki.
+EVENT_TYPE_ID = "Q42"
+
 RESOURCE_TYPES = {
     "Q43":    {"label": "Application",        "pluralLabel": "applications"},
     "Q53":    {"label": "Annual report",       "pluralLabel": "annual reports"},
@@ -88,6 +92,7 @@ SELECT
   ?language ?languageLabel
   ?mainSubject ?mainSubjectLabel
   ?tempAuthorValue
+  ?event ?eventLabel
 WHERE {{
   VALUES ?resourceType {{ wb:{resource_type_id} }}
 
@@ -109,6 +114,15 @@ WHERE {{
     ?tempAuthorStatement pq:P41 wb:P19 .
   }}
 
+  # Event context: a resource is "used by" (P42) a conference session, which
+  # may be "part of" (P17) another item zero or more times before reaching
+  # the top-level item that is itself "instance of" (P5) a conference.
+  OPTIONAL {{
+    ?resource wbt:P42 ?usedBy .
+    ?usedBy wbt:P17* ?event .
+    ?event wbt:P5 wb:{EVENT_TYPE_ID} .
+  }}
+
   SERVICE wikibase:label {{
     bd:serviceParam wikibase:language "mul,en,de,it,es,pt,sr,bg,pl,sv" .
     ?resource     rdfs:label ?resourceLabel .
@@ -118,6 +132,7 @@ WHERE {{
     ?author       rdfs:label ?authorLabel .
     ?language     rdfs:label ?languageLabel .
     ?mainSubject  rdfs:label ?mainSubjectLabel .
+    ?event        rdfs:label ?eventLabel .
   }}
 }}
 ORDER BY LCASE(STR(?resourceLabel))
@@ -244,6 +259,8 @@ def parse_rows(rows: List[Dict[str, Any]], resource_type_id: str) -> List[Dict[s
                 "authors":             [],
                 "publishers":          [],
                 "tempAuthors":         [],
+                "events":              [],
+                "eventIds":            [],
             }
 
         resource = by_id[resource_id]
@@ -271,9 +288,11 @@ def parse_rows(rows: List[Dict[str, Any]], resource_type_id: str) -> List[Dict[s
         add_unique(resource["authors"],     value(row, "authorLabel"))
         add_unique(resource["publishers"],  value(row, "publisherLabel"))
         add_unique(resource["tempAuthors"], value(row, "tempAuthorValue"))
+        add_unique(resource["events"],      value(row, "eventLabel"))
+        add_unique(resource["eventIds"],    item_id_from_uri(value(row, "event")))
 
     for resource in by_id.values():
-        for lst in ("languages", "subjects", "publishers", "authors", "tempAuthors", "typeIds"):
+        for lst in ("languages", "subjects", "publishers", "authors", "tempAuthors", "typeIds", "events", "eventIds"):
             resource[lst].sort()
 
         primary_url = get_primary_url(resource)
@@ -285,6 +304,7 @@ def parse_rows(rows: List[Dict[str, Any]], resource_type_id: str) -> List[Dict[s
             "language":        len(resource["languages"]) == 0,
             "externalLink":    not bool(primary_url),
             "unlinkedAuthor":  len(resource["tempAuthors"]) > 0,
+            "event":           len(resource["events"]) == 0,
         }
 
     return list(by_id.values())
@@ -310,6 +330,7 @@ def build_metadata(
     subject_counts:   Counter = Counter()
     author_counts:    Counter = Counter()
     publisher_counts: Counter = Counter()
+    event_counts:     Counter = Counter()
     missing_counts:   Counter = Counter()
 
     for r in resources:
@@ -318,6 +339,7 @@ def build_metadata(
         for subj in r.get("subjects",   []): subject_counts[subj]  += 1
         for auth in r.get("authors",    []): author_counts[auth]   += 1
         for pub  in r.get("publishers", []): publisher_counts[pub]  += 1
+        for evt  in r.get("events",     []): event_counts[evt]     += 1
         for key, is_missing in r.get("missing", {}).items():
             if is_missing:
                 missing_counts[key] += 1
@@ -344,6 +366,7 @@ def build_metadata(
         "languages":      dict(language_counts.most_common()),
         "subjects":       dict(subject_counts.most_common()),
         "publishers":     dict(publisher_counts.most_common()),
+        "events":         dict(event_counts.most_common()),
         "missing":        dict(missing_counts),
     }
 
