@@ -303,7 +303,7 @@ def parse_rows(rows: List[Dict[str, Any]], resource_type_id: str) -> List[Dict[s
             "publicationDate": not bool(resource["publicationDate"]),
             "language":        len(resource["languages"]) == 0,
             "externalLink":    not bool(primary_url),
-            "unlinkedAuthor":  len(resource["tempAuthors"]) > 0,
+            "author":          len(resource["authors"]) == 0 or len(resource["tempAuthors"]) > 0,
             "event":           len(resource["events"]) == 0,
         }
 

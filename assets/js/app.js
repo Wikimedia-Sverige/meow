@@ -77,8 +77,7 @@ var state = {
     missingSubject: false,
     missingLanguage: false,
     missingPublicationDate: false,
-    hasUnlinkedAuthor: false,
-    missingEvent: false
+    missingAuthors: false
   },
   sort: "id-desc",
   page: 1,
@@ -107,8 +106,7 @@ function readStateFromUrl() {
   state.maintenance.missingSubject         = missingFlags.indexOf("subject")        !== -1;
   state.maintenance.missingLanguage        = missingFlags.indexOf("language")       !== -1;
   state.maintenance.missingPublicationDate = missingFlags.indexOf("pubdate")        !== -1;
-  state.maintenance.hasUnlinkedAuthor      = missingFlags.indexOf("unlinkedauthor") !== -1;
-  state.maintenance.missingEvent           = missingFlags.indexOf("event")          !== -1;
+  state.maintenance.missingAuthors         = missingFlags.indexOf("author")         !== -1;
 
   var sort = params.get("sort");
   if (sort === "id") { sort = "id-asc"; }
@@ -143,8 +141,7 @@ function buildUrlParams() {
   if (state.maintenance.missingSubject)         missingFlags.push("subject");
   if (state.maintenance.missingLanguage)        missingFlags.push("language");
   if (state.maintenance.missingPublicationDate) missingFlags.push("pubdate");
-  if (state.maintenance.hasUnlinkedAuthor)      missingFlags.push("unlinkedauthor");
-  if (state.maintenance.missingEvent)           missingFlags.push("event");
+  if (state.maintenance.missingAuthors)         missingFlags.push("author");
   if (missingFlags.length) params.set("missing", missingFlags.join(","));
 
   if (state.sort && state.sort !== "id-desc") params.set("sort", state.sort);
@@ -169,8 +166,7 @@ function syncUiToState() {
   $("#missingSubjectFilter").prop("checked",          state.maintenance.missingSubject);
   $("#missingLanguageFilter").prop("checked",         state.maintenance.missingLanguage);
   $("#missingPublicationDateFilter").prop("checked",  state.maintenance.missingPublicationDate);
-  $("#hasUnlinkedAuthorFilter").prop("checked",       state.maintenance.hasUnlinkedAuthor);
-  $("#missingEventFilter").prop("checked",            state.maintenance.missingEvent);
+  $("#missingAuthorsFilter").prop("checked",          state.maintenance.missingAuthors);
   updateImproveDataCount();
   $("#viewGrid").attr("aria-pressed", state.view === "grid").toggleClass("is-active", state.view === "grid");
   $("#viewList").attr("aria-pressed", state.view === "list").toggleClass("is-active", state.view === "list");
@@ -492,14 +488,8 @@ $(function () {
     updateImproveDataCount();
     render();
   });
-  $("#hasUnlinkedAuthorFilter").on("change", function () {
-    state.maintenance.hasUnlinkedAuthor = $(this).is(":checked");
-    state.page = 1;
-    updateImproveDataCount();
-    render();
-  });
-  $("#missingEventFilter").on("change", function () {
-    state.maintenance.missingEvent = $(this).is(":checked");
+  $("#missingAuthorsFilter").on("change", function () {
+    state.maintenance.missingAuthors = $(this).is(":checked");
     state.page = 1;
     updateImproveDataCount();
     render();
@@ -562,8 +552,7 @@ function clearAllFilters() {
   state.maintenance.missingSubject        = false;
   state.maintenance.missingLanguage       = false;
   state.maintenance.missingPublicationDate = false;
-  state.maintenance.hasUnlinkedAuthor     = false;
-  state.maintenance.missingEvent          = false;
+  state.maintenance.missingAuthors        = false;
   state.page = 1;
 
   syncUiToState();
@@ -649,7 +638,7 @@ function normalizeResources(data) {
         publicationDate: hasMissing(resource, "publicationDate", !resource.publicationDate),
         language:        hasMissing(resource, "language",       !(resource.languages  && resource.languages.length)),
         externalLink:    hasMissing(resource, "externalLink",   !primaryUrl),
-        unlinkedAuthor:  hasMissing(resource, "unlinkedAuthor", !!(resource.tempAuthors && resource.tempAuthors.length)),
+        author:          hasMissing(resource, "author",         !(resource.authors && resource.authors.length) || !!(resource.tempAuthors && resource.tempAuthors.length)),
         event:           hasMissing(resource, "event",          !(resource.events && resource.events.length))
       }
     });
@@ -1402,8 +1391,7 @@ function renderActiveFilters() {
     state.maintenance.missingSubject        ||
     state.maintenance.missingLanguage       ||
     state.maintenance.missingPublicationDate ||
-    state.maintenance.hasUnlinkedAuthor     ||
-    state.maintenance.missingEvent;
+    state.maintenance.missingAuthors;
 
   if (!hasTypes && !hasYear && !hasSubjects && !hasPublishers && !hasAuthors && !hasEvents && !hasMaint) {
     $("#activeFilters").empty();
@@ -1447,8 +1435,7 @@ function renderActiveFilters() {
     if (state.maintenance.missingSubject)         { labels.push("missing keyword"); }
     if (state.maintenance.missingLanguage)        { labels.push("missing language"); }
     if (state.maintenance.missingPublicationDate) { labels.push("missing publication date"); }
-    if (state.maintenance.hasUnlinkedAuthor)      { labels.push("has unlinked author"); }
-    if (state.maintenance.missingEvent)           { labels.push("missing event"); }
+    if (state.maintenance.missingAuthors)         { labels.push("missing authors"); }
     html += "<span>Improve data: <strong>" + escapeHtml(labels.join(", ")) + "</strong></span>";
     html += '<button type="button" class="clear-maintenance-filter">Clear improve data</button>';
   }
@@ -1481,15 +1468,13 @@ function renderActiveFilters() {
     state.maintenance.missingSubject        = false;
     state.maintenance.missingLanguage       = false;
     state.maintenance.missingPublicationDate = false;
-    state.maintenance.hasUnlinkedAuthor     = false;
-    state.maintenance.missingEvent          = false;
+    state.maintenance.missingAuthors        = false;
     state.page = 1;
     $("#missingDescriptionFilter").prop("checked",     false);
     $("#missingSubjectFilter").prop("checked",         false);
     $("#missingLanguageFilter").prop("checked",        false);
     $("#missingPublicationDateFilter").prop("checked", false);
-    $("#hasUnlinkedAuthorFilter").prop("checked",      false);
-    $("#missingEventFilter").prop("checked",           false);
+    $("#missingAuthorsFilter").prop("checked",         false);
     updateImproveDataCount();
     render();
   });

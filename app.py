@@ -227,7 +227,7 @@ def _apply_filters(
             continue
         if "pubdate"        in missing_flags and not miss.get("publicationDate"):
             continue
-        if "unlinkedauthor" in missing_flags and not miss.get("unlinkedAuthor"):
+        if "author"         in missing_flags and not miss.get("author"):
             continue
         if "event"          in missing_flags and not miss.get("event"):
             continue
@@ -445,7 +445,7 @@ def api_resources():
     author      author label (repeatable)
     event       conference/event label (repeatable)
     missing     comma-separated flags: description, subject, language,
-                pubdate, unlinkedauthor, event
+                pubdate, author, event
     sort        title | date-desc | date-asc | type | id-asc | id-desc
     page        1-based page number (default 1)
     all         1 = return all results without pagination (for CSV export)
