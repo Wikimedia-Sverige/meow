@@ -39,7 +39,7 @@
       <button id="resetFilters" type="button" class="reset-button">Reset</button>
     </div>
 
-    <details class="filter-group collapsible-filter-group" open>
+    <details class="filter-group collapsible-filter-group">
       <summary>
         <span class="collapsible-filter-title">Resource type</span>
         <span id="resourceTypeCount" class="resource-type-count collapsible-filter-count"></span>
@@ -56,7 +56,7 @@
       </select>
     </div>
 
-    <details class="filter-group collapsible-filter-group" open>
+    <details class="filter-group collapsible-filter-group">
       <summary>
         <span class="collapsible-filter-title">Publication year</span>
         <span id="yearFilterCount" class="collapsible-filter-count"></span>
@@ -66,34 +66,43 @@
       </div>
     </details>
 
-    <div class="filter-group improve-data-group">
-      <h3>Improve data</h3>
+    <details class="filter-group collapsible-filter-group improve-data-group">
+      <summary>
+        <span class="collapsible-filter-title">Improve data</span>
+        <span id="improveDataCount" class="collapsible-filter-count"></span>
+      </summary>
+      <div class="collapsible-filter-content">
+        <label class="checkbox-row">
+          <input type="checkbox" id="missingDescriptionFilter">
+          <span class="checkbox-label">No description</span>
+        </label>
 
-      <label class="checkbox-row">
-        <input type="checkbox" id="missingDescriptionFilter">
-        <span class="checkbox-label">No description</span>
-      </label>
+        <label class="checkbox-row">
+          <input type="checkbox" id="missingSubjectFilter">
+          <span class="checkbox-label">No keywords</span>
+        </label>
 
-      <label class="checkbox-row">
-        <input type="checkbox" id="missingSubjectFilter">
-        <span class="checkbox-label">No keywords</span>
-      </label>
+        <label class="checkbox-row">
+          <input type="checkbox" id="missingLanguageFilter">
+          <span class="checkbox-label">No language</span>
+        </label>
 
-      <label class="checkbox-row">
-        <input type="checkbox" id="missingLanguageFilter">
-        <span class="checkbox-label">No language</span>
-      </label>
+        <label class="checkbox-row">
+          <input type="checkbox" id="missingPublicationDateFilter">
+          <span class="checkbox-label">No publication date</span>
+        </label>
 
-      <label class="checkbox-row">
-        <input type="checkbox" id="missingPublicationDateFilter">
-        <span class="checkbox-label">No publication date</span>
-      </label>
+        <label class="checkbox-row">
+          <input type="checkbox" id="hasUnlinkedAuthorFilter">
+          <span class="checkbox-label">Unlinked author(s)</span>
+        </label>
 
-      <label class="checkbox-row">
-        <input type="checkbox" id="hasUnlinkedAuthorFilter">
-        <span class="checkbox-label">Unlinked author(s)</span>
-      </label>
-    </div>
+        <label class="checkbox-row">
+          <input type="checkbox" id="missingEventFilter">
+          <span class="checkbox-label">No event</span>
+        </label>
+      </div>
+    </details>
 
     <details class="filter-group collapsible-filter-group">
       <summary>
@@ -114,6 +123,17 @@
       <div class="collapsible-filter-content">
         <input id="authorSearchInput" class="author-search" type="search" placeholder="Search authors">
         <div id="authorFilters" class="author-filter-list"></div>
+      </div>
+    </details>
+
+    <details class="filter-group collapsible-filter-group">
+      <summary>
+        <span class="collapsible-filter-title">Event</span>
+        <span id="eventCount" class="event-count collapsible-filter-count"></span>
+      </summary>
+      <div class="collapsible-filter-content">
+        <input id="eventSearchInput" class="event-search" type="search" placeholder="Search events">
+        <div id="eventFilters" class="event-filter-list"></div>
       </div>
     </details>
   </aside>

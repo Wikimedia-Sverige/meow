@@ -70,12 +70,15 @@ var state = {
   publishers: [],
   authorSearch: "",
   authors: [],
+  eventSearch: "",
+  events: [],
   maintenance: {
     missingDescription: false,
     missingSubject: false,
     missingLanguage: false,
     missingPublicationDate: false,
-    hasUnlinkedAuthor: false
+    hasUnlinkedAuthor: false,
+    missingEvent: false
   },
   sort: "id-desc",
   page: 1,
@@ -96,6 +99,7 @@ function readStateFromUrl() {
   state.subjects = params.getAll("subject");
   state.publishers = params.getAll("publisher");
   state.authors  = params.getAll("author");
+  state.events   = params.getAll("event");
 
   var missingStr   = params.get("missing") || "";
   var missingFlags = missingStr ? missingStr.split(",") : [];
@@ -104,6 +108,7 @@ function readStateFromUrl() {
   state.maintenance.missingLanguage        = missingFlags.indexOf("language")       !== -1;
   state.maintenance.missingPublicationDate = missingFlags.indexOf("pubdate")        !== -1;
   state.maintenance.hasUnlinkedAuthor      = missingFlags.indexOf("unlinkedauthor") !== -1;
+  state.maintenance.missingEvent           = missingFlags.indexOf("event")          !== -1;
 
   var sort = params.get("sort");
   if (sort === "id") { sort = "id-asc"; }
@@ -118,6 +123,7 @@ function readStateFromUrl() {
   state.subjectSearch   = "";
   state.publisherSearch = "";
   state.authorSearch    = "";
+  state.eventSearch     = "";
 }
 
 function buildUrlParams() {
@@ -130,6 +136,7 @@ function buildUrlParams() {
   $.each(state.types,      function (i, t) { params.append("type",      t); });
   $.each(state.publishers, function (i, p) { params.append("publisher", p); });
   $.each(state.authors,    function (i, a) { params.append("author",    a); });
+  $.each(state.events,     function (i, e) { params.append("event",     e); });
 
   var missingFlags = [];
   if (state.maintenance.missingDescription)     missingFlags.push("description");
@@ -137,6 +144,7 @@ function buildUrlParams() {
   if (state.maintenance.missingLanguage)        missingFlags.push("language");
   if (state.maintenance.missingPublicationDate) missingFlags.push("pubdate");
   if (state.maintenance.hasUnlinkedAuthor)      missingFlags.push("unlinkedauthor");
+  if (state.maintenance.missingEvent)           missingFlags.push("event");
   if (missingFlags.length) params.set("missing", missingFlags.join(","));
 
   if (state.sort && state.sort !== "id-desc") params.set("sort", state.sort);
@@ -162,11 +170,14 @@ function syncUiToState() {
   $("#missingLanguageFilter").prop("checked",         state.maintenance.missingLanguage);
   $("#missingPublicationDateFilter").prop("checked",  state.maintenance.missingPublicationDate);
   $("#hasUnlinkedAuthorFilter").prop("checked",       state.maintenance.hasUnlinkedAuthor);
+  $("#missingEventFilter").prop("checked",            state.maintenance.missingEvent);
+  updateImproveDataCount();
   $("#viewGrid").attr("aria-pressed", state.view === "grid").toggleClass("is-active", state.view === "grid");
   $("#viewList").attr("aria-pressed", state.view === "list").toggleClass("is-active", state.view === "list");
   $("#subjectSearchInput").val("");
   $("#publisherSearchInput").val("");
   $("#authorSearchInput").val("");
+  $("#eventSearchInput").val("");
 }
 
 // ---------------------------------------------------------------------------
@@ -237,7 +248,7 @@ function exportCsv() {
         "id", "title", "type", "description",
         "publication_date", "publication_month_year",
         "languages", "keywords", "publishers", "authors",
-        "temp_authors", "primary_url", "metabase_url"
+        "temp_authors", "events", "primary_url", "metabase_url"
       ];
 
       var rows = [columns.map(csvQuote).join(",")];
@@ -251,6 +262,7 @@ function exportCsv() {
           r.publishers.join(" | "),
           r.authors.join(" | "),
           (r.tempAuthors || []).join(" | "),
+          r.events.join(" | "),
           r.primaryUrl, r.metabaseUrl
         ].map(csvQuote).join(",");
         rows.push(row);
@@ -437,6 +449,10 @@ $(function () {
     state.subjectSearch = $(this).val().trim().toLowerCase();
     buildSubjectPanel(_lastFacets);
   });
+  $("#eventSearchInput").on("input", function () {
+    state.eventSearch = $(this).val().trim().toLowerCase();
+    buildEventFilters(_lastFacets);
+  });
 
   $("#clearSearch").on("click", function () { clearAllFilters(); });
 
@@ -455,26 +471,37 @@ $(function () {
   $("#missingDescriptionFilter").on("change", function () {
     state.maintenance.missingDescription = $(this).is(":checked");
     state.page = 1;
+    updateImproveDataCount();
     render();
   });
   $("#missingSubjectFilter").on("change", function () {
     state.maintenance.missingSubject = $(this).is(":checked");
     state.page = 1;
+    updateImproveDataCount();
     render();
   });
   $("#missingLanguageFilter").on("change", function () {
     state.maintenance.missingLanguage = $(this).is(":checked");
     state.page = 1;
+    updateImproveDataCount();
     render();
   });
   $("#missingPublicationDateFilter").on("change", function () {
     state.maintenance.missingPublicationDate = $(this).is(":checked");
     state.page = 1;
+    updateImproveDataCount();
     render();
   });
   $("#hasUnlinkedAuthorFilter").on("change", function () {
     state.maintenance.hasUnlinkedAuthor = $(this).is(":checked");
     state.page = 1;
+    updateImproveDataCount();
+    render();
+  });
+  $("#missingEventFilter").on("change", function () {
+    state.maintenance.missingEvent = $(this).is(":checked");
+    state.page = 1;
+    updateImproveDataCount();
     render();
   });
 
@@ -527,13 +554,16 @@ function clearAllFilters() {
   state.subjectSearch = "";
   state.publisherSearch = "";
   state.authorSearch = "";
+  state.eventSearch = "";
   state.publishers = [];
   state.authors = [];
+  state.events = [];
   state.maintenance.missingDescription    = false;
   state.maintenance.missingSubject        = false;
   state.maintenance.missingLanguage       = false;
   state.maintenance.missingPublicationDate = false;
   state.maintenance.hasUnlinkedAuthor     = false;
+  state.maintenance.missingEvent          = false;
   state.page = 1;
 
   syncUiToState();
@@ -610,6 +640,8 @@ function normalizeResources(data) {
       authors:              resource.authors    || [],
       subjects:             resource.subjects   || [],
       tempAuthors:          resource.tempAuthors || [],
+      events:               resource.events     || [],
+      eventIds:             resource.eventIds   || [],
       missing: {
         description:     hasMissing(resource, "description",    !resource.description),
         mainSubject:     hasMissing(resource, "mainSubject",    !(resource.subjects   && resource.subjects.length)),
@@ -617,7 +649,8 @@ function normalizeResources(data) {
         publicationDate: hasMissing(resource, "publicationDate", !resource.publicationDate),
         language:        hasMissing(resource, "language",       !(resource.languages  && resource.languages.length)),
         externalLink:    hasMissing(resource, "externalLink",   !primaryUrl),
-        unlinkedAuthor:  hasMissing(resource, "unlinkedAuthor", !!(resource.tempAuthors && resource.tempAuthors.length))
+        unlinkedAuthor:  hasMissing(resource, "unlinkedAuthor", !!(resource.tempAuthors && resource.tempAuthors.length)),
+        event:           hasMissing(resource, "event",          !(resource.events && resource.events.length))
       }
     });
   });
@@ -797,6 +830,43 @@ function buildAuthorFilters(facets) {
   });
 }
 
+function buildEventFilters(facets) {
+  var eventCounts = (facets && facets.events) || {};
+  var events      = Object.keys(eventCounts);
+
+  events.sort(function (a, b) {
+    if (eventCounts[b] !== eventCounts[a]) { return eventCounts[b] - eventCounts[a]; }
+    return a.localeCompare(b);
+  });
+
+  if (state.eventSearch) {
+    events = events.filter(function (e) {
+      return e.toLowerCase().indexOf(state.eventSearch) !== -1;
+    });
+  }
+
+  setCollapsibleCount("#eventCount", state.events.length, events.length);
+
+  if (!events.length) {
+    $("#eventFilters").html('<p class="filter-empty">No events found.</p>');
+    return;
+  }
+
+  var html = "";
+  $.each(events, function (i, evt) {
+    var activeClass = state.events.indexOf(evt) !== -1 ? " is-active" : "";
+    html += '<button type="button" class="event-filter-button' + activeClass + '" data-event="' + escapeAttribute(evt) + '">';
+    html += '<span class="event-filter-name">' + escapeHtml(evt) + "</span>";
+    html += '<span class="event-filter-count">' + eventCounts[evt] + "</span>";
+    html += "</button>";
+  });
+
+  $("#eventFilters").html(html);
+  $(".event-filter-button").on("click", function () {
+    toggleEventFilter($(this).data("event"));
+  });
+}
+
 function setCollapsibleCount(selector, activeCount, shownCount) {
   var text = shownCount + " shown";
   if (activeCount) {
@@ -806,6 +876,18 @@ function setCollapsibleCount(selector, activeCount, shownCount) {
     $(selector).removeClass("has-active");
   }
   $(selector).text(text);
+}
+
+function updateImproveDataCount() {
+  var active = 0;
+  $.each(state.maintenance, function (key, isOn) { if (isOn) { active++; } });
+
+  var $count = $("#improveDataCount");
+  if (active) {
+    $count.text(active + " active").addClass("has-active");
+  } else {
+    $count.text("").removeClass("has-active");
+  }
 }
 
 function buildSubjectPanel(facets) {
@@ -879,6 +961,7 @@ function render() {
       buildYearFilter(data.facets);
       buildPublisherFilters(data.facets);
       buildAuthorFilters(data.facets);
+      buildEventFilters(data.facets);
       buildSubjectPanel(data.facets);
 
       // Active filter strip above results
@@ -991,6 +1074,21 @@ function renderAuthors(resource) {
   return html + "</p>";
 }
 
+function renderEvents(resource) {
+  if (!resource.events || !resource.events.length) { return ""; }
+  var html = '<p class="resource-event">';
+  html += '<span class="resource-event-label" title="Event">🎤</span> ';
+  $.each(resource.events, function (j, evt) {
+    var activeClass = state.events.indexOf(evt) !== -1 ? " is-active" : "";
+    if (j > 0) { html += " "; }
+    html += '<button type="button" class="event-link' + activeClass + '" data-event="' + escapeAttribute(evt) + '">';
+    html += escapeHtml(evt);
+    html += "</button>";
+    if (j < resource.events.length - 1) { html += ","; }
+  });
+  return html + "</p>";
+}
+
 function renderTempAuthors(resource) {
   if (!resource.tempAuthors || !resource.tempAuthors.length) { return ""; }
   var html = '<p class="resource-temp-author">';
@@ -1014,25 +1112,35 @@ function renderSubjectTags(resource) {
   return html + "</div>";
 }
 
-function renderLinks(resource, cssClass) {
+// A single external-link glyph used for every resource link, so the button
+// always looks the same regardless of where it points (course, Commons,
+// Wikimedia page). The destination is conveyed via the tooltip/aria-label.
+var LINK_ICON_SVG =
+  '<svg width="15" height="15" viewBox="0 0 16 16" fill="none" aria-hidden="true">' +
+  '<path d="M6.5 3H3.75A1.75 1.75 0 0 0 2 4.75v7.5C2 13.216 2.784 14 3.75 14h7.5A1.75 1.75 0 0 0 13 12.25V9.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/>' +
+  '<path d="M9 2h5v5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/>' +
+  '<path d="M14 2 7.5 8.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/>' +
+  "</svg>";
+
+function linkIconButton(url, label) {
+  return '<a class="link-icon-button" href="' + escapeAttribute(url) + '" target="_blank" rel="noopener" title="' + escapeAttribute(label) + '" aria-label="' + escapeAttribute(label) + '">' + LINK_ICON_SVG + "</a>";
+}
+
+function renderLinkIcons(resource) {
   var html = "";
-  cssClass = cssClass || "card-actions";
-  html += '<div class="' + cssClass + '">';
   if (resource.courseUrl) {
-    html += '<a class="primary-link" href="' + escapeAttribute(resource.courseUrl) + '" target="_blank" rel="noopener">';
-    html += getPrimaryLinkLabel(resource);
-    html += "</a>";
+    html += linkIconButton(resource.courseUrl, getPrimaryLinkLabel(resource));
   }
   if (resource.commonsVideoPage) {
-    html += '<a class="primary-link" href="' + escapeAttribute(resource.commonsVideoPage) + '" target="_blank" rel="noopener">Open video on Commons</a>';
+    html += linkIconButton(resource.commonsVideoPage, "Open video on Commons");
   }
   if (resource.commonsDocumentPage) {
-    html += '<a class="primary-link" href="' + escapeAttribute(resource.commonsDocumentPage) + '" target="_blank" rel="noopener">Open on Commons</a>';
+    html += linkIconButton(resource.commonsDocumentPage, "Open on Commons");
   }
   if (resource.wikiPageUrl) {
-    html += '<a class="secondary-link" href="' + escapeAttribute(resource.wikiPageUrl) + '" target="_blank" rel="noopener">Open Wikimedia page</a>';
+    html += linkIconButton(resource.wikiPageUrl, "Open Wikimedia page");
   }
-  return html + "</div>";
+  return html;
 }
 
 function renderCardItems(pageItems) {
@@ -1041,8 +1149,14 @@ function renderCardItems(pageItems) {
     var formattedDate = resource.publicationMonthYear;
     html += '<article class="resource-card">';
     html += '<div class="card-meta">';
+    html += '<div class="card-badges">';
     html += renderBadges(resource, "grid");
     html += '<span class="badge">' + escapeHtml(resource.id) + "</span>";
+    html += "</div>";
+    var cardLinkIcons = renderLinkIcons(resource);
+    if (cardLinkIcons) {
+      html += '<div class="card-link-icons">' + cardLinkIcons + "</div>";
+    }
     html += "</div>";
     html += "<h2>";
     html += '<a class="resource-title-link" href="' + escapeAttribute(resource.metabaseUrl) + '" target="_blank" rel="noopener">';
@@ -1058,9 +1172,9 @@ function renderCardItems(pageItems) {
     }
     html += renderPublishers(resource);
     html += renderAuthors(resource);
+    html += renderEvents(resource);
     html += renderTempAuthors(resource);
     html += renderSubjectTags(resource);
-    html += renderLinks(resource, "card-actions");
     html += "</article>";
   });
   return html;
@@ -1089,6 +1203,9 @@ function renderListItems(pageItems) {
     if (resource.publishers.length || resource.authors.length) {
       metaParts.push(renderPublishers(resource) + renderAuthors(resource));
     }
+    if (resource.events.length) {
+      metaParts.push(renderEvents(resource));
+    }
     if (metaParts.length) {
       html += '<div class="row-meta">' + metaParts.join('<span class="row-meta-sep">·</span>') + "</div>";
     }
@@ -1096,7 +1213,10 @@ function renderListItems(pageItems) {
     html += renderSubjectTags(resource);
     html += "</div>";
     html += '<div class="row-actions">';
-    html += renderLinks(resource, "row-links");
+    var rowLinkIcons = renderLinkIcons(resource);
+    if (rowLinkIcons) {
+      html += '<div class="row-links">' + rowLinkIcons + "</div>";
+    }
     html += '<span class="badge row-id-badge">' + escapeHtml(resource.id) + "</span>";
     html += "</div>";
     html += "</article>";
@@ -1123,6 +1243,9 @@ function bindResultEvents() {
   });
   $(".author-link").on("click", function () {
     toggleAuthorFilter($(this).data("author"));
+  });
+  $(".event-link").on("click", function () {
+    toggleEventFilter($(this).data("event"));
   });
 }
 
@@ -1179,6 +1302,17 @@ function toggleAuthorFilter(author) {
   render();
 }
 
+function toggleEventFilter(evt) {
+  if (state.events.indexOf(evt) === -1) {
+    state.events.push(evt);
+  } else {
+    state.events = state.events.filter(function (item) { return item !== evt; });
+  }
+  state.page = 1;
+  syncEventFilters();
+  render();
+}
+
 // Provide immediate visual feedback before the API response arrives.
 function syncPublisherFilters() {
   $(".publisher-filter-button").each(function () {
@@ -1189,6 +1323,12 @@ function syncPublisherFilters() {
 function syncAuthorFilters() {
   $(".author-filter-button").each(function () {
     $(this).toggleClass("is-active", state.authors.indexOf($(this).data("author")) !== -1);
+  });
+}
+
+function syncEventFilters() {
+  $(".event-filter-button").each(function () {
+    $(this).toggleClass("is-active", state.events.indexOf($(this).data("event")) !== -1);
   });
 }
 
@@ -1256,14 +1396,16 @@ function renderActiveFilters() {
   var hasSubjects   = state.subjects.length > 0;
   var hasPublishers = state.publishers.length > 0;
   var hasAuthors    = state.authors.length > 0;
+  var hasEvents     = state.events.length > 0;
   var hasMaint      =
     state.maintenance.missingDescription    ||
     state.maintenance.missingSubject        ||
     state.maintenance.missingLanguage       ||
     state.maintenance.missingPublicationDate ||
-    state.maintenance.hasUnlinkedAuthor;
+    state.maintenance.hasUnlinkedAuthor     ||
+    state.maintenance.missingEvent;
 
-  if (!hasTypes && !hasYear && !hasSubjects && !hasPublishers && !hasAuthors && !hasMaint) {
+  if (!hasTypes && !hasYear && !hasSubjects && !hasPublishers && !hasAuthors && !hasEvents && !hasMaint) {
     $("#activeFilters").empty();
     return;
   }
@@ -1295,6 +1437,10 @@ function renderActiveFilters() {
     html += "<span>Author: <strong>" + escapeHtml(state.authors.join(", ")) + "</strong></span>";
     html += '<button type="button" class="clear-author-filter">Clear author</button>';
   }
+  if (hasEvents) {
+    html += "<span>Event: <strong>" + escapeHtml(state.events.join(", ")) + "</strong></span>";
+    html += '<button type="button" class="clear-event-filter">Clear event</button>';
+  }
   if (hasMaint) {
     var labels = [];
     if (state.maintenance.missingDescription)     { labels.push("missing description"); }
@@ -1302,6 +1448,7 @@ function renderActiveFilters() {
     if (state.maintenance.missingLanguage)        { labels.push("missing language"); }
     if (state.maintenance.missingPublicationDate) { labels.push("missing publication date"); }
     if (state.maintenance.hasUnlinkedAuthor)      { labels.push("has unlinked author"); }
+    if (state.maintenance.missingEvent)           { labels.push("missing event"); }
     html += "<span>Improve data: <strong>" + escapeHtml(labels.join(", ")) + "</strong></span>";
     html += '<button type="button" class="clear-maintenance-filter">Clear improve data</button>';
   }
@@ -1326,18 +1473,24 @@ function renderActiveFilters() {
   $(".clear-author-filter").on("click", function () {
     state.authors = []; state.page = 1; syncAuthorFilters(); render();
   });
+  $(".clear-event-filter").on("click", function () {
+    state.events = []; state.page = 1; syncEventFilters(); render();
+  });
   $(".clear-maintenance-filter").on("click", function () {
     state.maintenance.missingDescription    = false;
     state.maintenance.missingSubject        = false;
     state.maintenance.missingLanguage       = false;
     state.maintenance.missingPublicationDate = false;
     state.maintenance.hasUnlinkedAuthor     = false;
+    state.maintenance.missingEvent          = false;
     state.page = 1;
     $("#missingDescriptionFilter").prop("checked",     false);
     $("#missingSubjectFilter").prop("checked",         false);
     $("#missingLanguageFilter").prop("checked",        false);
     $("#missingPublicationDateFilter").prop("checked", false);
     $("#hasUnlinkedAuthorFilter").prop("checked",      false);
+    $("#missingEventFilter").prop("checked",           false);
+    updateImproveDataCount();
     render();
   });
 }
