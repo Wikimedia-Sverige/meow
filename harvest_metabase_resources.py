@@ -43,6 +43,7 @@ RESOURCE_TYPES = {
     "Q23367": {"label": "Brochure",            "pluralLabel": "brochures"},
     "Q22136": {"label": "Case study",          "pluralLabel": "case studies"},
     "Q25288": {"label": "Conference paper",    "pluralLabel": "conference papers"},
+    "Q50361": {"label": "Conference proceedings", "pluralLabel": "conference proceedings"},
     "Q21996": {"label": "Fail fest",           "pluralLabel": "fail fests"},
     "Q54":    {"label": "Financial statement", "pluralLabel": "financial statements"},
     "Q25817": {"label": "Grant proposal",      "pluralLabel": "grant proposals"},
