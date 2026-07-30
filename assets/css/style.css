@@ -121,6 +121,9 @@ select:focus-visible {
 #brandTitle { cursor: pointer; transition: color .15s; }
 #brandTitle:hover { color: var(--accent); }
 
+.brand-logo { display: block; height: 80px; width: auto; transition: opacity .15s; }
+#brandTitle:hover .brand-logo { opacity: .75; }
+
 .data-updated-at { margin: 4px 0 0; color: var(--muted); font-size: 12px; }
 
 .search-panel {
