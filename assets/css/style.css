@@ -7,18 +7,19 @@
    -------------------------------------------------------------------------- */
 
 :root {
-  --bg:             #f4efe7;
-  --card:           #ffffff;
-  --text:           #030933;
+  /* Content Partnerships Hub palette: https://meta.wikimedia.org/wiki/Content_Partnerships_Hub/Visual_identity/Colors */
+  --bg:             #f5ede2;      /* CPH Cream */
+  --card:           #ffffff;      /* CPH White */
+  --text:           #000427;      /* CPH Dark Blue */
   --muted:          #5f6270;
   --border:         #ddd4c8;
-  --accent:         #1a7ac4;
-  --accent-dark:    #125d97;      /* hover / pressed */
-  --accent-soft:    #daeef9;
-  --subject-bg:     #f3dfd1;
-  --subject-text:   #7a4629;
-  --subject-border: #d9ad91;
-  --ink:            #030933;
+  --accent:         #e0b852;      /* CPH Metabase Yellow — programmatic-area accent. Backgrounds/fills/borders only, never text (see guidance). */
+  --accent-dark:    #9c8039;      /* deepened yellow for hover/pressed fills and functional borders/focus rings (WCAG-safe against white/cream) */
+  --accent-soft:    #fbf5e7;      /* pale yellow tint for hover backgrounds */
+  --subject-bg:     #f5ebe5;      /* tints/shades derived from CPH Brown #C7906D */
+  --subject-text:   #73543f;
+  --subject-border: #dbb7a0;
+  --ink:            #000427;
   --radius:         8px;
 }
 
@@ -61,7 +62,7 @@ body {
   margin: 20px auto;
   border: 1px solid var(--subject-border);
   border-radius: var(--radius);
-  background: #fffdf5;
+  background: var(--accent-soft);
   padding: 14px 18px;
   color: var(--text);
   font-weight: 600;
@@ -73,7 +74,7 @@ button:focus-visible,
 a:focus-visible,
 input:focus-visible,
 select:focus-visible {
-  outline: 2px solid var(--accent);
+  outline: 2px solid var(--accent-dark);
   outline-offset: 2px;
 }
 
@@ -143,9 +144,9 @@ select:focus-visible {
 }
 
 .search-panel input:focus {
-  outline: 2px solid var(--accent);
+  outline: 2px solid var(--accent-dark);
   outline-offset: 0;
-  border-color: var(--accent);
+  border-color: var(--accent-dark);
 }
 
 .search-panel button {
@@ -161,7 +162,7 @@ select:focus-visible {
   transition: background .12s;
 }
 
-.search-panel button:hover { background: var(--accent); }
+.search-panel button:hover { background: var(--accent); color: var(--text); }
 
 /* Site navigation */
 
@@ -189,7 +190,7 @@ select:focus-visible {
 }
 
 .nav-link:hover,
-.nav-link:focus { color: var(--accent); background: var(--accent-soft); outline: none; }
+.nav-link:focus { color: var(--text); background: var(--accent-soft); outline: none; }
 
 /* --------------------------------------------------------------------------
    Three-column layout
@@ -242,7 +243,7 @@ select:focus-visible {
   transition: color .12s, border-color .12s;
 }
 
-.reset-button:hover { color: var(--accent); border-color: var(--accent); }
+.reset-button:hover { color: var(--text); border-color: var(--accent-dark); }
 
 /* --------------------------------------------------------------------------
    Filter groups
@@ -267,10 +268,10 @@ select:focus-visible {
   font-family: inherit;
 }
 
-.filter-group select:focus { outline: 2px solid var(--accent); border-color: var(--accent); }
+.filter-group select:focus { outline: 2px solid var(--accent-dark); border-color: var(--accent-dark); }
 
 .collapsible-filter-group.improve-data-group {
-  background: #fffdf5;
+  background: var(--accent-soft);
   border: 1px solid var(--subject-border);
   border-radius: var(--radius);
   padding: 2px 6px 8px;
@@ -300,7 +301,7 @@ select:focus-visible {
 .collapsible-filter-group summary::before { content: "▸"; color: var(--muted); font-size: 11px; }
 .collapsible-filter-group[open] summary::before { content: "▾"; }
 .collapsible-filter-group summary:hover { background: var(--accent-soft); }
-.collapsible-filter-group summary:focus-visible { outline: 2px solid var(--accent); }
+.collapsible-filter-group summary:focus-visible { outline: 2px solid var(--accent-dark); }
 
 .collapsible-filter-title { overflow: hidden; text-overflow: ellipsis; }
 
@@ -348,7 +349,7 @@ select:focus-visible {
 
 .publisher-search:focus,
 .author-search:focus,
-.event-search:focus { outline: 2px solid var(--accent); border-color: var(--accent); }
+.event-search:focus { outline: 2px solid var(--accent-dark); border-color: var(--accent-dark); }
 
 .publisher-filter-list,
 .author-filter-list,
@@ -379,12 +380,12 @@ select:focus-visible {
 .publisher-filter-button:hover,
 .author-filter-button:hover,
 .event-filter-button:hover,
-.resource-type-filter-button:hover { background: var(--accent-soft); border-color: var(--accent); }
+.resource-type-filter-button:hover { background: var(--accent-soft); border-color: var(--accent-dark); }
 
 .publisher-filter-button.is-active,
 .author-filter-button.is-active,
 .event-filter-button.is-active,
-.resource-type-filter-button.is-active { background: var(--accent); border-color: var(--accent); color: white; }
+.resource-type-filter-button.is-active { background: var(--accent); border-color: var(--accent); color: var(--text); }
 
 .publisher-filter-name,
 .author-filter-name,
@@ -409,9 +410,9 @@ select:focus-visible {
 .author-filter-button.is-active     .author-filter-count,
 .event-filter-button.is-active      .event-filter-count,
 .resource-type-filter-button.is-active .resource-type-filter-count {
-  background: rgba(255, 255, 255, .22);
-  border-color: rgba(255, 255, 255, .3);
-  color: white;
+  background: rgba(0, 4, 39, .12);
+  border-color: rgba(0, 4, 39, .28);
+  color: var(--text);
 }
 
 /* --------------------------------------------------------------------------
@@ -430,7 +431,7 @@ select:focus-visible {
   color: var(--text);
 }
 
-.subject-search:focus { outline: 2px solid var(--accent); border-color: var(--accent); }
+.subject-search:focus { outline: 2px solid var(--accent-dark); border-color: var(--accent-dark); }
 
 .subject-filter-list { max-height: calc(100vh - 180px); overflow-y: auto; padding-right: 2px; }
 
@@ -496,9 +497,9 @@ select:focus-visible {
   transition: background .1s, border-color .1s;
 }
 
-.year-bar-button:hover        { background: var(--accent-soft); border-color: var(--accent); }
-.year-bar-button.is-active    { background: var(--accent); border-color: var(--accent); color: white; }
-.year-bar-button:focus-visible { outline: 2px solid var(--accent); }
+.year-bar-button:hover        { background: var(--accent-soft); border-color: var(--accent-dark); }
+.year-bar-button.is-active    { background: var(--accent); border-color: var(--accent); color: var(--text); }
+.year-bar-button:focus-visible { outline: 2px solid var(--accent-dark); }
 
 .year-bar-label { font-weight: 700; white-space: nowrap; }
 
@@ -511,8 +512,8 @@ select:focus-visible {
 }
 
 .year-bar-button.is-active .year-bar-track {
-  border-color: rgba(255, 255, 255, .4);
-  background: rgba(255, 255, 255, .2);
+  border-color: rgba(0, 4, 39, .25);
+  background: rgba(0, 4, 39, .12);
 }
 
 .year-bar-fill {
@@ -522,7 +523,7 @@ select:focus-visible {
   transition: width .2s ease;
 }
 
-.year-bar-button.is-active .year-bar-fill { background: white; }
+.year-bar-button.is-active .year-bar-fill { background: var(--text); }
 
 .year-bar-count {
   color: var(--muted);
@@ -532,7 +533,7 @@ select:focus-visible {
   white-space: nowrap;
 }
 
-.year-bar-button.is-active .year-bar-count { color: rgba(255, 255, 255, .85); }
+.year-bar-button.is-active .year-bar-count { color: rgba(0, 4, 39, .75); }
 .year-no-date { margin: 5px 6px 0; color: var(--muted); font-size: 11px; }
 
 /* --------------------------------------------------------------------------
@@ -562,7 +563,7 @@ select:focus-visible {
   font-family: inherit;
 }
 
-.results-toolbar select:focus { outline: 2px solid var(--accent); border-color: var(--accent); }
+.results-toolbar select:focus { outline: 2px solid var(--accent-dark); border-color: var(--accent-dark); }
 
 /* Summary stats */
 
@@ -599,12 +600,12 @@ select:focus-visible {
 .summary-stat-button:hover,
 .summary-stat-button:focus { background: var(--accent-soft); outline: none; }
 
-.summary-stat-hint { display: block; margin-top: 4px; color: var(--accent); font-size: 11px; font-weight: 700; }
+.summary-stat-hint { display: block; margin-top: 4px; color: var(--text); font-size: 11px; font-weight: 700; }
 
 /* Active filter strip */
 
 .active-filter-strip {
-  background: #fffdf5;
+  background: var(--accent-soft);
   border: 1px solid var(--subject-border);
   border-radius: var(--radius);
   padding: 8px 12px;
@@ -698,9 +699,9 @@ select:focus-visible {
   transition: background .1s, color .1s;
 }
 
-.view-toggle-button:hover        { background: var(--accent-soft); color: var(--accent); }
+.view-toggle-button:hover        { background: var(--accent-soft); color: var(--text); }
 .view-toggle-button.is-active    { background: var(--ink); color: white; }
-.view-toggle-button:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.view-toggle-button:focus-visible { outline: 2px solid var(--accent-dark); outline-offset: -2px; }
 
 .copy-link-button,
 .export-csv-button {
@@ -728,7 +729,7 @@ select:focus-visible {
 .export-csv-button:hover:not(:disabled),
 .export-csv-button:focus:not(:disabled) {
   color: var(--ink);
-  border-color: var(--accent);
+  border-color: var(--accent-dark);
   background: var(--accent-soft);
   outline: none;
 }
@@ -761,7 +762,7 @@ select:focus-visible {
 }
 
 .resource-card:hover {
-  border-color: rgba(26, 122, 196, .45);
+  border-color: rgba(156, 128, 57, .5);
   box-shadow: 0 3px 10px rgba(0, 0, 0, .09);
 }
 
@@ -799,16 +800,16 @@ select:focus-visible {
 }
 
 .badge--clickable { cursor: pointer; font: inherit; transition: background .1s, color .1s, border-color .1s; }
-.badge--clickable:hover        { background: var(--accent-soft); color: var(--accent); border-color: var(--accent); }
-.badge--clickable.is-active    { background: var(--accent) !important; color: white !important; border-color: var(--accent) !important; }
-.badge--clickable:focus-visible { outline: 2px solid var(--accent); }
+.badge--clickable:hover        { background: var(--accent-soft); color: var(--text); border-color: var(--accent-dark); }
+.badge--clickable.is-active    { background: var(--accent) !important; color: var(--text) !important; border-color: var(--accent) !important; }
+.badge--clickable:focus-visible { outline: 2px solid var(--accent-dark); }
 
 .resource-card h2 { margin: 0 0 7px; font-size: 16px; font-weight: 700; line-height: 1.25; letter-spacing: -0.01em; }
 
-/* Card title always blue — instantly signals "this is a link / catalog item" */
-.resource-title-link { color: var(--accent); text-decoration: none; text-underline-offset: 3px; }
+/* Card title in brand dark-blue — instantly signals "this is a link / catalog item" */
+.resource-title-link { color: var(--text); text-decoration: none; text-underline-offset: 3px; }
 .resource-title-link:hover,
-.resource-title-link:focus { color: var(--accent-dark); text-decoration: underline; outline: none; }
+.resource-title-link:focus { color: var(--text); text-decoration: underline; outline: none; }
 
 .description {
   margin: 0 0 2px;
@@ -863,7 +864,7 @@ select:focus-visible {
 .event-link {
   border: 0;
   background: transparent;
-  color: var(--accent);
+  color: var(--text);
   padding: 0;
   margin: 0;
   font: inherit;
@@ -912,7 +913,7 @@ select:focus-visible {
   border-radius: 50%;
   border: 1px solid var(--accent);
   background: var(--accent);
-  color: white !important;
+  color: var(--text) !important;
   text-decoration: none;
   transition: background .12s, border-color .12s;
 }
@@ -1006,7 +1007,7 @@ select:focus-visible {
   font-family: inherit;
   font-size: 11px;
   font-weight: 700;
-  color: var(--accent);
+  color: var(--text);
   cursor: pointer;
   text-align: left;
   line-height: 1.3;
@@ -1015,7 +1016,7 @@ select:focus-visible {
 }
 
 .row-type-label:hover,
-.row-type-label.is-active { color: var(--accent-dark); text-decoration: underline; }
+.row-type-label.is-active { color: var(--text); text-decoration: underline; }
 
 .row-lang-label {
   display: block;
@@ -1071,8 +1072,8 @@ select:focus-visible {
   transition: background .1s, border-color .1s, color .1s;
 }
 
-.pagination-button:hover:not(:disabled):not(.is-current) { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); }
-.pagination-button:focus-visible { outline: 2px solid var(--accent); }
+.pagination-button:hover:not(:disabled):not(.is-current) { border-color: var(--accent-dark); color: var(--text); background: var(--accent-soft); }
+.pagination-button:focus-visible { outline: 2px solid var(--accent-dark); }
 .pagination-button.is-current    { background: var(--ink); border-color: var(--ink); color: white; cursor: default; }
 .pagination-button:disabled      { opacity: 0.38; cursor: not-allowed; }
 
@@ -1119,7 +1120,7 @@ select:focus-visible {
 
 .jump-to-top.is-visible { opacity: 1; pointer-events: auto; }
 .jump-to-top:hover      { background: var(--ink); color: white; }
-.jump-to-top:focus-visible { outline: 2px solid var(--accent); }
+.jump-to-top:focus-visible { outline: 2px solid var(--accent-dark); }
 
 /* --------------------------------------------------------------------------
    Modals — shared structure
@@ -1131,7 +1132,7 @@ body.modal-open { overflow: hidden; }
   position: fixed;
   inset: 0;
   z-index: 1000;
-  background: rgba(3, 9, 51, .48);
+  background: rgba(0, 4, 39, .48);
   padding: 24px;
   overflow-y: auto;
 }
@@ -1160,7 +1161,7 @@ body.modal-open { overflow: hidden; }
   padding: 16px 20px;
 }
 
-.modal-kicker { margin: 0 0 3px; color: var(--accent); font-size: 11px; font-weight: 700; letter-spacing: .07em; text-transform: uppercase; }
+.modal-kicker { margin: 0 0 3px; color: var(--text); font-size: 11px; font-weight: 700; letter-spacing: .07em; text-transform: uppercase; }
 
 .modal-header h2 { margin: 0; color: var(--ink); font-size: clamp(20px, 2.5vw, 30px); line-height: 1.1; letter-spacing: -0.02em; }
 
@@ -1198,7 +1199,7 @@ body.modal-open { overflow: hidden; }
 .modal-body p  { margin: 0 0 10px; }
 .modal-body ul { margin: 0 0 10px; padding-left: 20px; }
 .modal-body li { margin: 4px 0; }
-.modal-body a  { color: var(--accent); }
+.modal-body a  { color: var(--text); text-decoration: underline; }
 
 /* About modal */
 .about-org-block {
@@ -1259,7 +1260,7 @@ body.modal-open { overflow: hidden; }
   gap: 10px;
   margin-bottom: 12px;
   padding: 10px 14px;
-  background: #fffdf5;
+  background: var(--accent-soft);
   color: var(--muted);
   font-size: 13px;
 }
@@ -1316,7 +1317,7 @@ body.modal-open { overflow: hidden; }
 .language-bar-button:hover,
 .language-bar-button:focus,
 .keyword-bar-button:hover,
-.keyword-bar-button:focus { background: var(--accent-soft); border-color: var(--accent); outline: none; }
+.keyword-bar-button:focus { background: var(--accent-soft); border-color: var(--accent-dark); outline: none; }
 
 .language-bar-label { overflow: hidden; text-overflow: ellipsis; font-size: 13px; font-weight: 600; }
 
