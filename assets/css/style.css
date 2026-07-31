@@ -929,6 +929,32 @@ select:focus-visible {
   outline: none;
 }
 
+/* Wikidata cross-reference — a quiet secondary link, deliberately less
+   prominent than the primary resource link(s) above. */
+.wikidata-link-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--muted) !important;
+  text-decoration: none;
+  transition: border-color .12s, color .12s;
+}
+
+.wikidata-link-button svg { display: block; width: 11px; height: 11px; }
+
+.wikidata-link-button:hover,
+.wikidata-link-button:focus-visible {
+  border-color: var(--muted);
+  color: var(--text) !important;
+  outline: none;
+}
+
 .empty-state,
 .error-state {
   background: white;
@@ -996,6 +1022,8 @@ select:focus-visible {
 .row-links { display: flex; flex-direction: row; gap: 4px; }
 .row-links .link-icon-button { width: 26px; height: 26px; }
 .row-links .link-icon-button svg { width: 13px; height: 13px; }
+.row-links .wikidata-link-button { width: 18px; height: 18px; }
+.row-links .wikidata-link-button svg { width: 9px; height: 9px; }
 
 .row-id-badge { margin-left: 0 !important; }
 

@@ -618,6 +618,7 @@ function normalizeResources(data) {
     var commonsDocumentPage = normalizeCommonsFilePageUrl(resource.commonsDocumentPage || "");
     var youtubeUrl          = getYoutubeUrl(resource.youtubeId);
     var wikiPageUrl         = getWikimediaPageUrl(resource.wikiPage);
+    var wikidataUrl         = getWikidataUrl(resource.wikidataId);
     var primaryUrl          = courseUrl || commonsVideoPage || commonsDocumentPage || youtubeUrl || wikiPageUrl;
 
     normalized.push({
@@ -636,6 +637,8 @@ function normalizeResources(data) {
       youtubeUrl:           youtubeUrl,
       wikiPage:             resource.wikiPage || "",
       wikiPageUrl:          wikiPageUrl,
+      wikidataId:           resource.wikidataId || "",
+      wikidataUrl:          wikidataUrl,
       metabaseUrl:          "https://metabase.wikibase.cloud/wiki/Item:" + id,
       primaryUrl:           primaryUrl,
       primaryUrlLabel:      "",
@@ -1151,6 +1154,14 @@ function renderLinkIcons(resource) {
   return html;
 }
 
+// A small, quiet secondary link — Wikidata is a cross-reference, not the
+// resource's primary link, so it's styled to recede rather than compete
+// with the main link-icon-button(s).
+function renderWikidataLink(resource) {
+  if (!resource.wikidataUrl) { return ""; }
+  return '<a class="wikidata-link-button" href="' + escapeAttribute(resource.wikidataUrl) + '" target="_blank" rel="noopener" title="View on Wikidata" aria-label="View on Wikidata">' + LINK_ICON_SVG + "</a>";
+}
+
 function renderCardItems(pageItems) {
   var html = "";
   $.each(pageItems, function (i, resource) {
@@ -1161,7 +1172,7 @@ function renderCardItems(pageItems) {
     html += renderBadges(resource, "grid");
     html += '<span class="badge">' + escapeHtml(resource.id) + "</span>";
     html += "</div>";
-    var cardLinkIcons = renderLinkIcons(resource);
+    var cardLinkIcons = renderLinkIcons(resource) + renderWikidataLink(resource);
     if (cardLinkIcons) {
       html += '<div class="card-link-icons">' + cardLinkIcons + "</div>";
     }
@@ -1221,7 +1232,7 @@ function renderListItems(pageItems) {
     html += renderSubjectTags(resource);
     html += "</div>";
     html += '<div class="row-actions">';
-    var rowLinkIcons = renderLinkIcons(resource);
+    var rowLinkIcons = renderLinkIcons(resource) + renderWikidataLink(resource);
     if (rowLinkIcons) {
       html += '<div class="row-links">' + rowLinkIcons + "</div>";
     }
@@ -1910,6 +1921,11 @@ function getWikimediaPageUrl(wikiPageValue) {
 function getYoutubeUrl(youtubeId) {
   if (!youtubeId) { return ""; }
   return "https://www.youtube.com/watch?v=" + encodeURIComponent(youtubeId);
+}
+
+function getWikidataUrl(wikidataId) {
+  if (!wikidataId) { return ""; }
+  return "https://www.wikidata.org/wiki/" + encodeURIComponent(wikidataId);
 }
 
 function normalizeCommonsFilePageUrl(url) {
