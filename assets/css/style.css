@@ -305,6 +305,8 @@ select:focus-visible {
 
 .collapsible-filter-title { overflow: hidden; text-overflow: ellipsis; }
 
+.collapsible-filter-icon { display: inline-block; width: 1.3em; text-align: center; margin-right: 2px; }
+
 .collapsible-filter-count {
   justify-self: end;
   white-space: nowrap;
