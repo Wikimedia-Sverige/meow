@@ -27,6 +27,7 @@ var resourceTypes = {
   Q36499: { label: "Operational plan", pluralLabel: "operational plans" },
   Q44: { label: "Poster", pluralLabel: "posters" },
   Q23235: { label: "Podcast episode", pluralLabel: "podcast episodes" },
+  Q2: { label: "Project", pluralLabel: "projects" },
   Q29: { label: "Report", pluralLabel: "reports" },
   Q23251: { label: "Scholarly article", pluralLabel: "scholarly articles" },
   Q62: { label: "Slide deck", pluralLabel: "slide decks" },
@@ -618,8 +619,10 @@ function normalizeResources(data) {
     var commonsDocumentPage = normalizeCommonsFilePageUrl(resource.commonsDocumentPage || "");
     var youtubeUrl          = getYoutubeUrl(resource.youtubeId);
     var wikiPageUrl         = getWikimediaPageUrl(resource.wikiPage);
+    var describedAtPageUrl  = getWikimediaPageUrl(resource.describedAtPage);
+    var describedAtUrl      = resource.describedAtUrl || "";
     var wikidataUrl         = getWikidataUrl(resource.wikidataId);
-    var primaryUrl          = courseUrl || commonsVideoPage || commonsDocumentPage || youtubeUrl || wikiPageUrl;
+    var primaryUrl          = courseUrl || commonsVideoPage || commonsDocumentPage || youtubeUrl || wikiPageUrl || describedAtPageUrl;
 
     normalized.push({
       id:                   id,
@@ -637,6 +640,9 @@ function normalizeResources(data) {
       youtubeUrl:           youtubeUrl,
       wikiPage:             resource.wikiPage || "",
       wikiPageUrl:          wikiPageUrl,
+      describedAtPage:      resource.describedAtPage || "",
+      describedAtPageUrl:   describedAtPageUrl,
+      describedAtUrl:       describedAtUrl,
       wikidataId:           resource.wikidataId || "",
       wikidataUrl:          wikidataUrl,
       metabaseUrl:          "https://metabase.wikibase.cloud/wiki/Item:" + id,
@@ -656,7 +662,7 @@ function normalizeResources(data) {
         publisher:       hasMissing(resource, "publisher",      !(resource.publishers && resource.publishers.length)),
         publicationDate: hasMissing(resource, "publicationDate", !resource.publicationDate),
         language:        hasMissing(resource, "language",       !(resource.languages  && resource.languages.length)),
-        externalLink:    hasMissing(resource, "externalLink",   !primaryUrl),
+        externalLink:    hasMissing(resource, "externalLink",   !primaryUrl && !describedAtUrl),
         author:          hasMissing(resource, "author",         !(resource.authors && resource.authors.length) || !!(resource.tempAuthors && resource.tempAuthors.length)),
         event:           hasMissing(resource, "event",          !(resource.events && resource.events.length))
       }
@@ -1151,6 +1157,12 @@ function renderLinkIcons(resource) {
   if (resource.wikiPageUrl) {
     html += linkIconButton(resource.wikiPageUrl, "Open Wikimedia page");
   }
+  if (resource.describedAtPageUrl) {
+    html += linkIconButton(resource.describedAtPageUrl, "Open Wikimedia page");
+  }
+  if (resource.describedAtUrl) {
+    html += linkIconButton(resource.describedAtUrl, "Open external page");
+  }
   return html;
 }
 
@@ -1159,7 +1171,7 @@ function renderLinkIcons(resource) {
 // with the main link-icon-button(s).
 function renderWikidataLink(resource) {
   if (!resource.wikidataUrl) { return ""; }
-  return '<a class="wikidata-link-button" href="' + escapeAttribute(resource.wikidataUrl) + '" target="_blank" rel="noopener" title="View on Wikidata" aria-label="View on Wikidata">' + LINK_ICON_SVG + "</a>";
+  return '<a class="wikidata-link-button" href="' + escapeAttribute(resource.wikidataUrl) + '" target="_blank" rel="noopener" title="View on Wikidata" aria-label="View on Wikidata">WD</a>';
 }
 
 function renderCardItems(pageItems) {
@@ -1610,6 +1622,7 @@ function getPrimaryLinkLabel(resource) {
   if (resource.commonsVideoPage)    { return "Open video on Commons"; }
   if (resource.commonsDocumentPage) { return "Open on Commons"; }
   if (resource.wikiPageUrl)         { return "Open Wikimedia page"; }
+  if (resource.describedAtPageUrl)  { return "Open Wikimedia page"; }
   return "Open resource";
 }
 

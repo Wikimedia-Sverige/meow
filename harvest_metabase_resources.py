@@ -57,6 +57,7 @@ RESOURCE_TYPES = {
     "Q36499": {"label": "Operational plan",    "pluralLabel": "operational plans"},
     "Q44":    {"label": "Poster",              "pluralLabel": "posters"},
     "Q23235": {"label": "Podcast episode",     "pluralLabel": "podcast episodes"},
+    "Q2":     {"label": "Project",             "pluralLabel": "projects"},
     "Q29":    {"label": "Report",              "pluralLabel": "reports"},
     "Q23251": {"label": "Scholarly article",   "pluralLabel": "scholarly articles"},
     "Q62":    {"label": "Slide deck",          "pluralLabel": "slide decks"},
@@ -70,6 +71,18 @@ RESOURCE_TYPES = {
     "Q47":    {"label": "White paper",         "pluralLabel": "white papers"},
     "Q76":    {"label": "Final report",        "pluralLabel": "final reports"},
 }
+
+# Extra "instance of" (P5) Q-IDs that should be harvested alongside a type
+# already in RESOURCE_TYPES and folded into it, rather than treated as a
+# distinct resource type. WikiProject items are lumped in with "project".
+RESOURCE_TYPE_ALIASES = {
+    "Q22926": "Q2",  # WikiProject -> Project
+}
+
+
+def canonical_type_id(type_id: str) -> str:
+    """Map a harvested "instance of" Q-ID to its canonical resource type."""
+    return RESOURCE_TYPE_ALIASES.get(type_id, type_id)
 
 
 def build_query(resource_type_id: str) -> str:
@@ -91,7 +104,7 @@ SELECT
   ?author ?authorLabel
   ?courseUrl ?commonsVideoPage ?commonsDocumentPage
   ?youtubeId
-  ?wikiPage ?publicationDate
+  ?wikiPage ?describedAtPage ?describedAtUrl ?publicationDate
   ?publisher ?publisherLabel
   ?language ?languageLabel
   ?mainSubject ?mainSubjectLabel
@@ -110,6 +123,8 @@ WHERE {{
   OPTIONAL {{ ?resource wbt:P22 ?commonsDocumentPage . }}
   OPTIONAL {{ ?resource wbt:P59 ?youtubeId . }}
   OPTIONAL {{ ?resource wbt:P45 ?wikiPage . }}
+  OPTIONAL {{ ?resource wbt:P11 ?describedAtPage . }}
+  OPTIONAL {{ ?resource wbt:P12 ?describedAtUrl . }}
   OPTIONAL {{ ?resource wbt:P18 ?publicationDate . }}
   OPTIONAL {{ ?resource wbt:P21 ?publisher . }}
   OPTIONAL {{ ?resource wbt:P20 ?language . }}
@@ -241,6 +256,8 @@ def get_primary_url(resource: Dict[str, Any]) -> str:
         return youtube_url(resource["youtubeId"])
     if resource.get("wikiPage"):
         return wikimedia_page_url(resource["wikiPage"])
+    if resource.get("describedAtPage"):
+        return wikimedia_page_url(resource["describedAtPage"])
     return ""
 
 
@@ -256,7 +273,7 @@ def parse_rows(rows: List[Dict[str, Any]], resource_type_id: str) -> List[Dict[s
         if not resource_id:
             continue
 
-        type_id = item_id_from_uri(value(row, "resourceType")) or resource_type_id
+        type_id = canonical_type_id(item_id_from_uri(value(row, "resourceType")) or resource_type_id)
 
         if resource_id not in by_id:
             raw_date = value(row, "publicationDate")
@@ -273,6 +290,8 @@ def parse_rows(rows: List[Dict[str, Any]], resource_type_id: str) -> List[Dict[s
                 "commonsDocumentPage": value(row, "commonsDocumentPage"),
                 "youtubeId":           value(row, "youtubeId"),
                 "wikiPage":            value(row, "wikiPage"),
+                "describedAtPage":     value(row, "describedAtPage"),
+                "describedAtUrl":      value(row, "describedAtUrl"),
                 "languages":           [],
                 "subjects":            [],
                 "authors":             [],
@@ -296,6 +315,8 @@ def parse_rows(rows: List[Dict[str, Any]], resource_type_id: str) -> List[Dict[s
             ("commonsDocumentPage", "commonsDocumentPage"),
             ("youtubeId",           "youtubeId"),
             ("wikiPage",            "wikiPage"),
+            ("describedAtPage",     "describedAtPage"),
+            ("describedAtUrl",      "describedAtUrl"),
         ):
             if not resource.get(field):
                 resource[field] = value(row, key)
@@ -325,7 +346,7 @@ def parse_rows(rows: List[Dict[str, Any]], resource_type_id: str) -> List[Dict[s
             "publisher":       len(resource["publishers"]) == 0,
             "publicationDate": not bool(resource["publicationDate"]),
             "language":        len(resource["languages"]) == 0,
-            "externalLink":    not bool(primary_url),
+            "externalLink":    not bool(primary_url or resource["describedAtUrl"]),
             "author":          len(resource["authors"]) == 0 or len(resource["tempAuthors"]) > 0,
             "event":           len(resource["events"]) == 0,
         }
@@ -404,7 +425,7 @@ def harvest_resource_type(
     max_retries: int,
 ) -> List[Dict[str, Any]]:
     """Harvest and normalise one configured resource type."""
-    label = RESOURCE_TYPES.get(resource_type_id, {}).get("label", resource_type_id)
+    label = RESOURCE_TYPES.get(canonical_type_id(resource_type_id), {}).get("label", resource_type_id)
     print(f"Harvesting {label} ({resource_type_id})...")
 
     rows = run_sparql(
@@ -476,7 +497,7 @@ def main() -> int:
     failed_resource_types: List[str] = []
 
     with requests.Session() as session:
-        for resource_type_id in RESOURCE_TYPES:
+        for resource_type_id in list(RESOURCE_TYPES) + list(RESOURCE_TYPE_ALIASES):
             try:
                 for resource in harvest_resource_type(
                     resource_type_id,
