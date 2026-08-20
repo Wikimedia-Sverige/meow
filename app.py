@@ -58,6 +58,7 @@ RESOURCE_TYPES: Dict[str, Dict[str, str]] = {
     "Q36499": {"label": "Operational plan",    "pluralLabel": "operational plans"},
     "Q44":    {"label": "Poster",              "pluralLabel": "posters"},
     "Q23235": {"label": "Podcast episode",     "pluralLabel": "podcast episodes"},
+    "Q2":     {"label": "Project",             "pluralLabel": "projects"},
     "Q29":    {"label": "Report",              "pluralLabel": "reports"},
     "Q23251": {"label": "Scholarly article",   "pluralLabel": "scholarly articles"},
     "Q62":    {"label": "Slide deck",          "pluralLabel": "slide decks"},
