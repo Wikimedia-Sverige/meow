@@ -38,6 +38,8 @@ var state = {
   authors: [],
   eventSearch: "",
   events: [],
+  collectionSearch: "",
+  collections: [],
   maintenance: {
     missingTitle: false,
     missingDescription: false,
@@ -66,6 +68,7 @@ function readStateFromUrl() {
   state.publishers = params.getAll("publisher");
   state.authors  = params.getAll("author");
   state.events   = params.getAll("event");
+  state.collections = params.getAll("collection");
 
   var missingStr   = params.get("missing") || "";
   var missingFlags = missingStr ? missingStr.split(",") : [];
@@ -90,6 +93,7 @@ function readStateFromUrl() {
   state.publisherSearch = "";
   state.authorSearch    = "";
   state.eventSearch     = "";
+  state.collectionSearch = "";
 }
 
 function buildUrlParams() {
@@ -103,6 +107,7 @@ function buildUrlParams() {
   $.each(state.publishers, function (i, p) { params.append("publisher", p); });
   $.each(state.authors,    function (i, a) { params.append("author",    a); });
   $.each(state.events,     function (i, e) { params.append("event",     e); });
+  $.each(state.collections, function (i, c) { params.append("collection", c); });
 
   var missingFlags = [];
   if (state.maintenance.missingTitle)           missingFlags.push("title");
@@ -144,6 +149,7 @@ function syncUiToState() {
   $("#publisherSearchInput").val("");
   $("#authorSearchInput").val("");
   $("#eventSearchInput").val("");
+  $("#collectionSearchInput").val("");
 }
 
 // ---------------------------------------------------------------------------
@@ -214,7 +220,7 @@ function exportCsv() {
         "id", "title", "type", "description",
         "publication_date", "publication_month_year",
         "languages", "keywords", "publishers", "authors",
-        "temp_authors", "events", "primary_url", "metabase_url"
+        "temp_authors", "events", "collections", "primary_url", "metabase_url"
       ];
 
       var rows = [columns.map(csvQuote).join(",")];
@@ -229,6 +235,7 @@ function exportCsv() {
           r.authors.join(" | "),
           (r.tempAuthors || []).join(" | "),
           r.events.join(" | "),
+          r.collections.join(" | "),
           r.primaryUrl, r.metabaseUrl
         ].map(csvQuote).join(",");
         rows.push(row);
@@ -419,6 +426,10 @@ $(function () {
     state.eventSearch = $(this).val().trim().toLowerCase();
     buildEventFilters(_lastFacets);
   });
+  $("#collectionSearchInput").on("input", function () {
+    state.collectionSearch = $(this).val().trim().toLowerCase();
+    buildCollectionFilters(_lastFacets);
+  });
 
   $("#clearSearch").on("click", function () { clearAllFilters(); });
 
@@ -520,9 +531,11 @@ function clearAllFilters() {
   state.publisherSearch = "";
   state.authorSearch = "";
   state.eventSearch = "";
+  state.collectionSearch = "";
   state.publishers = [];
   state.authors = [];
   state.events = [];
+  state.collections = [];
   state.maintenance.missingTitle          = false;
   state.maintenance.missingDescription    = false;
   state.maintenance.missingSubject        = false;
@@ -619,6 +632,8 @@ function normalizeResources(data) {
       tempAuthors:          resource.tempAuthors || [],
       events:               resource.events     || [],
       eventIds:             resource.eventIds   || [],
+      collections:          resource.collections || [],
+      collectionIds:        resource.collectionIds || [],
       missing: {
         title:           hasMissing(resource, "title",           !resource.titleProperty),
         description:     hasMissing(resource, "description",    !resource.description),
@@ -808,6 +823,43 @@ function buildAuthorFilters(facets) {
   });
 }
 
+function buildCollectionFilters(facets) {
+  var collectionCounts = (facets && facets.collections) || {};
+  var collections      = Object.keys(collectionCounts);
+
+  collections.sort(function (a, b) {
+    if (collectionCounts[b] !== collectionCounts[a]) { return collectionCounts[b] - collectionCounts[a]; }
+    return a.localeCompare(b);
+  });
+
+  if (state.collectionSearch) {
+    collections = collections.filter(function (c) {
+      return c.toLowerCase().indexOf(state.collectionSearch) !== -1;
+    });
+  }
+
+  setCollapsibleCount("#collectionCount", state.collections.length, collections.length);
+
+  if (!collections.length) {
+    $("#collectionFilters").html('<p class="filter-empty">No collections found.</p>');
+    return;
+  }
+
+  var html = "";
+  $.each(collections, function (i, collection) {
+    var activeClass = state.collections.indexOf(collection) !== -1 ? " is-active" : "";
+    html += '<button type="button" class="collection-filter-button' + activeClass + '" data-collection="' + escapeAttribute(collection) + '">';
+    html += '<span class="collection-filter-name">' + escapeHtml(collection) + "</span>";
+    html += '<span class="collection-filter-count">' + collectionCounts[collection] + "</span>";
+    html += "</button>";
+  });
+
+  $("#collectionFilters").html(html);
+  $(".collection-filter-button").on("click", function () {
+    toggleCollectionFilter($(this).data("collection"));
+  });
+}
+
 function buildEventFilters(facets) {
   var eventCounts = (facets && facets.events) || {};
   var events      = Object.keys(eventCounts);
@@ -939,6 +991,7 @@ function render() {
       buildYearFilter(data.facets);
       buildPublisherFilters(data.facets);
       buildAuthorFilters(data.facets);
+      buildCollectionFilters(data.facets);
       buildEventFilters(data.facets);
       buildSubjectPanel(data.facets);
 
@@ -1067,6 +1120,21 @@ function renderEvents(resource) {
   return html + "</p>";
 }
 
+function renderCollections(resource) {
+  if (!resource.collections || !resource.collections.length) { return ""; }
+  var html = '<p class="resource-collection">';
+  html += '<span class="resource-collection-label" title="Collection">📚</span> ';
+  $.each(resource.collections, function (j, collection) {
+    var activeClass = state.collections.indexOf(collection) !== -1 ? " is-active" : "";
+    if (j > 0) { html += " "; }
+    html += '<button type="button" class="collection-link' + activeClass + '" data-collection="' + escapeAttribute(collection) + '">';
+    html += escapeHtml(collection);
+    html += "</button>";
+    if (j < resource.collections.length - 1) { html += ","; }
+  });
+  return html + "</p>";
+}
+
 function renderTempAuthors(resource) {
   if (!resource.tempAuthors || !resource.tempAuthors.length) { return ""; }
   var html = '<p class="resource-temp-author">';
@@ -1167,6 +1235,7 @@ function renderCardItems(pageItems) {
     }
     html += renderPublishers(resource);
     html += renderAuthors(resource);
+    html += renderCollections(resource);
     html += renderEvents(resource);
     html += renderTempAuthors(resource);
     html += renderSubjectTags(resource);
@@ -1197,6 +1266,9 @@ function renderListItems(pageItems) {
     }
     if (resource.publishers.length || resource.authors.length) {
       metaParts.push(renderPublishers(resource) + renderAuthors(resource));
+    }
+    if (resource.collections.length) {
+      metaParts.push(renderCollections(resource));
     }
     if (resource.events.length) {
       metaParts.push(renderEvents(resource));
@@ -1241,6 +1313,9 @@ function bindResultEvents() {
   });
   $(".event-link").on("click", function () {
     toggleEventFilter($(this).data("event"));
+  });
+  $(".collection-link").on("click", function () {
+    toggleCollectionFilter($(this).data("collection"));
   });
 }
 
@@ -1308,6 +1383,17 @@ function toggleEventFilter(evt) {
   render();
 }
 
+function toggleCollectionFilter(collection) {
+  if (state.collections.indexOf(collection) === -1) {
+    state.collections.push(collection);
+  } else {
+    state.collections = state.collections.filter(function (item) { return item !== collection; });
+  }
+  state.page = 1;
+  syncCollectionFilters();
+  render();
+}
+
 // Provide immediate visual feedback before the API response arrives.
 function syncPublisherFilters() {
   $(".publisher-filter-button").each(function () {
@@ -1318,6 +1404,12 @@ function syncPublisherFilters() {
 function syncAuthorFilters() {
   $(".author-filter-button").each(function () {
     $(this).toggleClass("is-active", state.authors.indexOf($(this).data("author")) !== -1);
+  });
+}
+
+function syncCollectionFilters() {
+  $(".collection-filter-button").each(function () {
+    $(this).toggleClass("is-active", state.collections.indexOf($(this).data("collection")) !== -1);
   });
 }
 
@@ -1392,6 +1484,7 @@ function renderActiveFilters() {
   var hasPublishers = state.publishers.length > 0;
   var hasAuthors    = state.authors.length > 0;
   var hasEvents     = state.events.length > 0;
+  var hasCollections = state.collections.length > 0;
   var hasMaint      =
     state.maintenance.missingTitle          ||
     state.maintenance.missingDescription    ||
@@ -1400,7 +1493,7 @@ function renderActiveFilters() {
     state.maintenance.missingPublicationDate ||
     state.maintenance.missingAuthors;
 
-  if (!hasTypes && !hasYear && !hasSubjects && !hasPublishers && !hasAuthors && !hasEvents && !hasMaint) {
+  if (!hasTypes && !hasYear && !hasSubjects && !hasPublishers && !hasAuthors && !hasCollections && !hasEvents && !hasMaint) {
     $("#activeFilters").empty();
     return;
   }
@@ -1431,6 +1524,10 @@ function renderActiveFilters() {
   if (hasAuthors) {
     html += "<span>Author: <strong>" + escapeHtml(state.authors.join(", ")) + "</strong></span>";
     html += '<button type="button" class="clear-author-filter">Clear author</button>';
+  }
+  if (hasCollections) {
+    html += "<span>Collection: <strong>" + escapeHtml(state.collections.join(", ")) + "</strong></span>";
+    html += '<button type="button" class="clear-collection-filter">Clear collection</button>';
   }
   if (hasEvents) {
     html += "<span>Event: <strong>" + escapeHtml(state.events.join(", ")) + "</strong></span>";
@@ -1467,6 +1564,9 @@ function renderActiveFilters() {
   });
   $(".clear-author-filter").on("click", function () {
     state.authors = []; state.page = 1; syncAuthorFilters(); render();
+  });
+  $(".clear-collection-filter").on("click", function () {
+    state.collections = []; state.page = 1; syncCollectionFilters(); render();
   });
   $(".clear-event-filter").on("click", function () {
     state.events = []; state.page = 1; syncEventFilters(); render();

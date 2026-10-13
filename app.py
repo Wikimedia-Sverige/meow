@@ -120,6 +120,7 @@ def _apply_filters(
     publishers: Optional[List[str]] = None,
     authors: Optional[List[str]] = None,
     events: Optional[List[str]] = None,
+    collections: Optional[List[str]] = None,
     missing_flags: Optional[set] = None,
     exclude: Optional[str] = None,
 ) -> List[Dict[str, Any]]:
@@ -127,7 +128,8 @@ def _apply_filters(
     Filter resources against the given criteria.
 
     exclude: one of "types", "language", "year", "subjects",
-             "publishers", "authors", "events" — that dimension is skipped,
+             "publishers", "authors", "events", "collections" — that
+             dimension is skipped,
              enabling context-aware facet counts (conjunctive faceted search).
     """
     types         = types         or []
@@ -135,6 +137,7 @@ def _apply_filters(
     publishers    = publishers    or []
     authors       = authors       or []
     events        = events        or []
+    collections   = collections   or []
     missing_flags = missing_flags or set()
 
     result = []
@@ -180,6 +183,10 @@ def _apply_filters(
 
         if exclude != "events" and events:
             if not _has_any(r.get("events", []), events):
+                continue
+
+        if exclude != "collections" and collections:
+            if not _has_any(r.get("collections", []), collections):
                 continue
 
         miss = r.get("missing", {})
@@ -307,6 +314,13 @@ def _count_events(pool: List[Dict]) -> Dict[str, int]:
             c[e] += 1
     return dict(c)
 
+def _count_collections(pool: List[Dict]) -> Dict[str, int]:
+    c: Counter = Counter()
+    for r in pool:
+        for coll in r.get("collections", []):
+            c[coll] += 1
+    return dict(c)
+
 
 # ---------------------------------------------------------------------------
 # Insights (computed once at load time, used by the modal dialogs)
@@ -418,6 +432,7 @@ def api_resources():
     publisher   publisher label (repeatable)
     author      author label (repeatable)
     event       conference/event label (repeatable)
+    collection  collection label, e.g. a blog or podcast (repeatable)
     missing     comma-separated flags: title, description, subject,
                 language, pubdate, author, event
     sort        title | date-desc | date-asc | type | id-asc | id-desc
@@ -433,6 +448,7 @@ def api_resources():
     publishers  = request.args.getlist("publisher")
     authors     = request.args.getlist("author")
     events      = request.args.getlist("event")
+    collections = request.args.getlist("collection")
     missing_str = request.args.get("missing", "")
     missing_flags = set(missing_str.split(",")) if missing_str else set()
     sort        = request.args.get("sort", "id-desc")
@@ -447,7 +463,7 @@ def api_resources():
     fkw: Dict[str, Any] = dict(
         q=q, types=types, language=language, year=year,
         subjects=subjects, publishers=publishers, authors=authors,
-        events=events, missing_flags=missing_flags,
+        events=events, collections=collections, missing_flags=missing_flags,
     )
 
     with _data_lock:
@@ -473,6 +489,7 @@ def api_resources():
         "publishers": _count_publishers(_apply_filters(resources, **fkw, exclude="publishers")),
         "authors":    _count_authors(   _apply_filters(resources, **fkw, exclude="authors")),
         "events":     _count_events(    _apply_filters(resources, **fkw, exclude="events")),
+        "collections": _count_collections(_apply_filters(resources, **fkw, exclude="collections")),
     }
 
     if export_all:

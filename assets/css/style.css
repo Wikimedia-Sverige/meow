@@ -333,10 +333,11 @@ select:focus-visible {
 
 .filter-empty { margin: 4px 0; color: var(--muted); font-size: 12px; }
 
-/* Shared filter-item buttons — types, publishers, authors, events */
+/* Shared filter-item buttons — types, publishers, authors, events, collections */
 
 .publisher-search,
 .author-search,
+.collection-search,
 .event-search {
   width: 100%;
   margin-bottom: 8px;
@@ -351,16 +352,19 @@ select:focus-visible {
 
 .publisher-search:focus,
 .author-search:focus,
+.collection-search:focus,
 .event-search:focus { outline: 2px solid var(--accent-dark); border-color: var(--accent-dark); }
 
 .publisher-filter-list,
 .author-filter-list,
 .event-filter-list,
+.collection-filter-list,
 .resource-type-filter-list { max-height: 160px; overflow-y: auto; padding-right: 2px; }
 
 .publisher-filter-button,
 .author-filter-button,
 .event-filter-button,
+.collection-filter-button,
 .resource-type-filter-button {
   width: 100%;
   border: 1px solid transparent;
@@ -382,21 +386,25 @@ select:focus-visible {
 .publisher-filter-button:hover,
 .author-filter-button:hover,
 .event-filter-button:hover,
+.collection-filter-button:hover,
 .resource-type-filter-button:hover { background: var(--accent-soft); border-color: var(--accent-dark); }
 
 .publisher-filter-button.is-active,
 .author-filter-button.is-active,
 .event-filter-button.is-active,
+.collection-filter-button.is-active,
 .resource-type-filter-button.is-active { background: var(--accent); border-color: var(--accent); color: var(--text); }
 
 .publisher-filter-name,
 .author-filter-name,
 .event-filter-name,
+.collection-filter-name,
 .resource-type-filter-name { overflow: hidden; text-overflow: ellipsis; }
 
 .publisher-filter-count,
 .author-filter-count,
 .event-filter-count,
+.collection-filter-count,
 .resource-type-filter-count {
   background: var(--bg);
   border: 1px solid var(--border);
@@ -411,6 +419,7 @@ select:focus-visible {
 .publisher-filter-button.is-active  .publisher-filter-count,
 .author-filter-button.is-active     .author-filter-count,
 .event-filter-button.is-active      .event-filter-count,
+.collection-filter-button.is-active      .collection-filter-count,
 .resource-type-filter-button.is-active .resource-type-filter-count {
   background: rgba(0, 4, 39, .12);
   border-color: rgba(0, 4, 39, .28);
@@ -831,6 +840,7 @@ select:focus-visible {
 
 .resource-publisher,
 .resource-author,
+.resource-collection,
 .resource-event { margin: 6px 0 0; color: var(--muted); font-size: 12px; line-height: 1.4; }
 
 /* P38 unlinked author strings */
@@ -839,6 +849,7 @@ select:focus-visible {
 .resource-publisher-label,
 .resource-author-label,
 .resource-event-label,
+.resource-collection-label,
 .resource-temp-author-label { display: inline-flex; width: 1.3em; justify-content: center; }
 
 .resource-temp-author-label { opacity: .55; }
@@ -863,6 +874,7 @@ select:focus-visible {
 
 .publisher-link,
 .author-link,
+.collection-link,
 .event-link {
   border: 0;
   background: transparent;
@@ -878,12 +890,15 @@ select:focus-visible {
 .publisher-link:hover,
 .author-link:hover,
 .event-link:hover,
+.collection-link:hover,
 .publisher-link:focus,
 .author-link:focus,
+.collection-link:focus,
 .event-link:focus { text-decoration: underline; outline: none; }
 
 .publisher-link.is-active,
 .author-link.is-active,
+.collection-link.is-active,
 .event-link.is-active { background: var(--subject-bg); color: var(--subject-text); text-decoration: underline; }
 
 .subject-tags { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 9px; }
@@ -1014,6 +1029,7 @@ select:focus-visible {
 
 .row-meta .resource-publisher,
 .row-meta .resource-author,
+.row-meta .resource-collection,
 .row-meta .resource-event { margin: 0; font-size: 12px; }
 .row-meta-date             { font-weight: 600; white-space: nowrap; }
 .row-meta-sep              { color: var(--border); user-select: none; }
@@ -1423,6 +1439,7 @@ body.modal-open { overflow: hidden; }
   .publisher-filter-list,
   .author-filter-list,
   .event-filter-list,
+  .collection-filter-list,
   .resource-type-filter-list,
   .subject-filter-list { max-height: none; overflow-y: visible; }
 }

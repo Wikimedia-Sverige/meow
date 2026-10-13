@@ -6,7 +6,8 @@ The harvest runs in three rounds of small, sequential SPARQL queries:
 
   1. one query listing every resource's Q-ID and type(s);
   2. the resources' labels, descriptions and statements, in batches of Q-IDs;
-  3. the labels of the items those statements point at (authors, subjects, ...).
+  3. the labels of the items those statements point at (authors, subjects,
+     collections, ...).
 
 The files are written only if every query succeeded, so a failed run leaves
 the previous harvest in place.
@@ -48,6 +49,15 @@ MAX_RETRY_DELAY = 120
 # instance of (P5) this Q-ID marks the top of a "used by / part of" chain
 # (P42 -> P17*) as a conference, e.g. Wikimania or GLAM Wiki.
 EVENT_TYPE_ID = "Q42"
+
+# A resource's collection is the publication or series it belongs to, such as
+# the Diff blog or Wikipediapodden. "published in" (P107) may point at a single
+# issue or translation, which is rolled up to the publication it is an
+# "edition or translation of" (P118). "part of the series" (P86) points at the
+# collection directly.
+PUBLISHED_IN_PROPERTY = "P107"
+EDITION_OF_PROPERTY = "P118"
+SERIES_PROPERTY = "P86"
 
 RESOURCE_TYPES = {
     "Q43":    {"label": "Application",        "pluralLabel": "applications"},
@@ -197,7 +207,7 @@ SELECT
   ?resource ?resourceLabel ?resourceDescription
   {scalar_vars}
   {linked_vars}
-  ?tempAuthorValue ?event
+  ?tempAuthorValue ?event ?collection
 WHERE {{
   {resources}
   {{
@@ -224,6 +234,13 @@ WHERE {{
       ?usedBy wbt:P17* ?event .
       ?event wbt:P5 wb:{EVENT_TYPE_ID} .
     }}
+    # Collection: see the comment on PUBLISHED_IN_PROPERTY.
+    UNION {{
+      ?resource wbt:{PUBLISHED_IN_PROPERTY} ?issue .
+      OPTIONAL {{ ?issue wbt:{EDITION_OF_PROPERTY} ?publication . }}
+      BIND(COALESCE(?publication, ?issue) AS ?collection)
+    }}
+    UNION {{ ?resource wbt:{SERIES_PROPERTY} ?collection . }}
   }}
 }}
 """
@@ -400,6 +417,7 @@ def new_raw_record() -> Dict[str, Any]:
         "titles": set(),  # (language code, text) pairs
         "tempAuthors": set(),
         "eventIds": set(),
+        "collectionIds": set(),
     }
     for _, field in SCALAR_PROPERTIES:
         record[field] = set()
@@ -435,6 +453,8 @@ def collect_rows(
             record["tempAuthors"].add(value(row, "tempAuthorValue"))
         if known_value(row, "event"):
             record["eventIds"].add(item_id_from_uri(value(row, "event")))
+        if known_value(row, "collection"):
+            record["collectionIds"].add(item_id_from_uri(value(row, "collection")))
 
 
 def pick_title(titles: Set[Tuple[str, str]]) -> str:
@@ -496,6 +516,8 @@ def build_resource(
         "tempAuthors":         sorted(raw["tempAuthors"]),
         "events":              linked_labels(raw["eventIds"]),
         "eventIds":            sorted(raw["eventIds"]),
+        "collections":         linked_labels(raw["collectionIds"]),
+        "collectionIds":       sorted(raw["collectionIds"]),
     }
 
     primary_url = get_primary_url(resource)
@@ -520,6 +542,7 @@ def build_metadata(resources: List[Dict[str, Any]], *, endpoint: str) -> Dict[st
     author_counts:    Counter = Counter()
     publisher_counts: Counter = Counter()
     event_counts:     Counter = Counter()
+    collection_counts: Counter = Counter()
     missing_counts:   Counter = Counter()
 
     for r in resources:
@@ -529,6 +552,7 @@ def build_metadata(resources: List[Dict[str, Any]], *, endpoint: str) -> Dict[st
         for auth in r.get("authors",    []): author_counts[auth]   += 1
         for pub  in r.get("publishers", []): publisher_counts[pub]  += 1
         for evt  in r.get("events",     []): event_counts[evt]     += 1
+        for coll in r.get("collections", []): collection_counts[coll] += 1
         for key, is_missing in r.get("missing", {}).items():
             if is_missing:
                 missing_counts[key] += 1
@@ -558,6 +582,7 @@ def build_metadata(resources: List[Dict[str, Any]], *, endpoint: str) -> Dict[st
         "subjects":       dict(subject_counts.most_common()),
         "publishers":     dict(publisher_counts.most_common()),
         "events":         dict(event_counts.most_common()),
+        "collections":    dict(collection_counts.most_common()),
         "missing":        dict(missing_counts),
     }
 
@@ -604,7 +629,7 @@ def harvest(
         {
             item_id
             for raw in raw_records.values()
-            for field in [field for _, _, field in LINKED_PROPERTIES] + ["eventIds"]
+            for field in [field for _, _, field in LINKED_PROPERTIES] + ["eventIds", "collectionIds"]
             for item_id in raw[field]
         },
         key=lambda qid: int(qid[1:]),
