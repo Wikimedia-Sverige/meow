@@ -20,7 +20,7 @@
     </div>
     <div class="search-panel">
       <input id="searchInput" type="search" placeholder="Search resources" aria-label="Search resources" autocomplete="off">
-      <button id="clearSearch" type="button">Clear</button>
+      <button id="clearSearch" type="button" aria-label="Clear search">Clear</button>
     </div>
 
     <nav class="site-nav" aria-label="Site navigation">
@@ -36,7 +36,7 @@
   <aside class="filters">
     <div class="filters-header">
       <h2>Filters</h2>
-      <button id="resetFilters" type="button" class="reset-button">Reset</button>
+      <button id="resetFilters" type="button" class="reset-button" aria-label="Reset filters">Reset</button>
     </div>
 
     <details class="filter-group collapsible-filter-group" name="filterAccordion">
@@ -110,7 +110,7 @@
         <span id="publisherCount" class="publisher-count collapsible-filter-count"></span>
       </summary>
       <div class="collapsible-filter-content">
-        <input id="publisherSearchInput" class="publisher-search" type="search" placeholder="Search publishers">
+        <input id="publisherSearchInput" aria-label="Search publishers" class="publisher-search" type="search" placeholder="Search publishers">
         <div id="publisherFilters" class="publisher-filter-list"></div>
       </div>
     </details>
@@ -121,7 +121,7 @@
         <span id="authorCount" class="author-count collapsible-filter-count"></span>
       </summary>
       <div class="collapsible-filter-content">
-        <input id="authorSearchInput" class="author-search" type="search" placeholder="Search authors">
+        <input id="authorSearchInput" aria-label="Search authors" class="author-search" type="search" placeholder="Search authors">
         <div id="authorFilters" class="author-filter-list"></div>
       </div>
     </details>
@@ -132,7 +132,7 @@
         <span id="eventCount" class="event-count collapsible-filter-count"></span>
       </summary>
       <div class="collapsible-filter-content">
-        <input id="eventSearchInput" class="event-search" type="search" placeholder="Search events">
+        <input id="eventSearchInput" aria-label="Search events" class="event-search" type="search" placeholder="Search events">
         <div id="eventFilters" class="event-filter-list"></div>
       </div>
     </details>
@@ -179,7 +179,7 @@
           Export CSV
         </button>
 
-        <select id="sortSelect">
+        <select id="sortSelect" aria-label="Sort results">
           <option value="title">Sort by title</option>
           <option value="date-desc">Newest first</option>
           <option value="date-asc">Oldest first</option>
@@ -202,7 +202,7 @@
       <p id="subjectCount" class="subject-count"></p>
     </div>
 
-    <input id="subjectSearchInput" class="subject-search" type="search" placeholder="Search keywords">
+    <input id="subjectSearchInput" aria-label="Search keywords" class="subject-search" type="search" placeholder="Search keywords">
 
     <div id="subjectFilters" class="subject-filter-list"></div>
   </aside>

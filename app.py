@@ -34,45 +34,6 @@ METADATA_PATH       = DATA_DIR / "metadata.json"
 PAGE_SIZE           = 48
 DATA_WATCH_INTERVAL = 300  # seconds between mtime checks
 
-RESOURCE_TYPES: Dict[str, Dict[str, str]] = {
-    "Q43":    {"label": "Application",        "pluralLabel": "applications"},
-    "Q53":    {"label": "Annual report",       "pluralLabel": "annual reports"},
-    "Q55":    {"label": "Audit report",        "pluralLabel": "audit reports"},
-    "Q44583": {"label": "Article",             "pluralLabel": "articles"},
-    "Q22266": {"label": "Budget",              "pluralLabel": "budgets"},
-    "Q23237": {"label": "Blog post",           "pluralLabel": "blog posts"},
-    "Q23367": {"label": "Brochure",            "pluralLabel": "brochures"},
-    "Q22136": {"label": "Case study",          "pluralLabel": "case studies"},
-    "Q25288": {"label": "Conference paper",    "pluralLabel": "conference papers"},
-    "Q50361": {"label": "Conference proceedings", "pluralLabel": "conference proceedings"},
-    "Q21996": {"label": "Fail fest",           "pluralLabel": "fail fests"},
-    "Q54":    {"label": "Financial statement", "pluralLabel": "financial statements"},
-    "Q25817": {"label": "Grant proposal",      "pluralLabel": "grant proposals"},
-    "Q21954": {"label": "Guide",               "pluralLabel": "guides"},
-    "Q23360": {"label": "Guideline",           "pluralLabel": "guidelines"},
-    "Q31862": {"label": "Handbook",            "pluralLabel": "handbooks"},
-    "Q23351": {"label": "How-to",              "pluralLabel": "how-tos"},
-    "Q24134": {"label": "Manual",              "pluralLabel": "manuals"},
-    "Q57":    {"label": "Minutes",             "pluralLabel": "minutes"},
-    "Q45501": {"label": "Online course",       "pluralLabel": "online courses"},
-    "Q36499": {"label": "Operational plan",    "pluralLabel": "operational plans"},
-    "Q44":    {"label": "Poster",              "pluralLabel": "posters"},
-    "Q23235": {"label": "Podcast episode",     "pluralLabel": "podcast episodes"},
-    "Q2":     {"label": "Project",             "pluralLabel": "projects"},
-    "Q29":    {"label": "Report",              "pluralLabel": "reports"},
-    "Q23251": {"label": "Scholarly article",   "pluralLabel": "scholarly articles"},
-    "Q62":    {"label": "Slide deck",          "pluralLabel": "slide decks"},
-    "Q21993": {"label": "Story",               "pluralLabel": "stories"},
-    "Q36469": {"label": "Strategic plan",      "pluralLabel": "strategic plans"},
-    "Q23276": {"label": "Tutorial",            "pluralLabel": "tutorials"},
-    "Q21950": {"label": "Video",               "pluralLabel": "videos"},
-    "Q45522": {"label": "Video tutorial",      "pluralLabel": "video tutorials"},
-    "Q23258": {"label": "Wikibooks book",      "pluralLabel": "Wikibooks books"},
-    "Q23260": {"label": "Wikiversity course",  "pluralLabel": "Wikiversity courses"},
-    "Q47":    {"label": "White paper",         "pluralLabel": "white papers"},
-    "Q76":    {"label": "Final report",        "pluralLabel": "final reports"},
-}
-
 # ---------------------------------------------------------------------------
 # Flask app
 # ---------------------------------------------------------------------------
@@ -183,6 +144,7 @@ def _apply_filters(
             haystack = " ".join([
                 r.get("id", ""),
                 r.get("title", ""),
+                r.get("titleProperty", ""),
                 r.get("description", ""),
                 " ".join(r.get("publishers", [])),
                 " ".join(r.get("authors", [])),
@@ -244,7 +206,15 @@ def _apply_filters(
 # Sorting
 # ---------------------------------------------------------------------------
 
-def _sort_resources(resources: List[Dict[str, Any]], sort: str) -> List[Dict[str, Any]]:
+def _sort_resources(
+    resources: List[Dict[str, Any]],
+    sort: str,
+    resource_types: Dict[str, Dict[str, Any]],
+) -> List[Dict[str, Any]]:
+    """
+    resource_types: the harvested metadata's "resourceTypes", which carry
+    the label of every type present in the data.
+    """
     def q_num(r: Dict[str, Any]) -> int:
         m = re.match(r"Q(\d+)", r.get("id", ""), re.IGNORECASE)
         return int(m.group(1)) if m else 10 ** 9
@@ -254,7 +224,7 @@ def _sort_resources(resources: List[Dict[str, Any]], sort: str) -> List[Dict[str
 
     def type_label(r: Dict[str, Any]) -> str:
         type_id = (r.get("typeIds") or [""])[0]
-        return RESOURCE_TYPES.get(type_id, {}).get("label", type_id).lower()
+        return resource_types.get(type_id, {}).get("label", type_id).lower()
 
     def sortable_date(r: Dict[str, Any]) -> str:
         pub = str(r.get("publicationDate") or "").lstrip("+")
@@ -482,10 +452,11 @@ def api_resources():
 
     with _data_lock:
         resources = _resources  # safe: we only ever replace, never mutate
+        resource_types = _metadata.get("resourceTypes", {})
 
     # Main filtered + sorted set
     filtered = _apply_filters(resources, **fkw)
-    filtered = _sort_resources(filtered, sort)
+    filtered = _sort_resources(filtered, sort, resource_types)
     total    = len(filtered)
 
     # Facets: each dimension is computed with itself excluded so the panel

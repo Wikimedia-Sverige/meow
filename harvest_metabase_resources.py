@@ -2,6 +2,15 @@
 """
 Harvest educational resources from Metabase Wikibase Cloud and save them as JSON.
 
+The harvest runs in three rounds of small, sequential SPARQL queries:
+
+  1. one query listing every resource's Q-ID and type(s);
+  2. the resources' labels, descriptions and statements, in batches of Q-IDs;
+  3. the labels of the items those statements point at (authors, subjects, ...).
+
+The files are written only if every query succeeded, so a failed run leaves
+the previous harvest in place.
+
 Creates:
   data/resources.json
   data/metadata.json
@@ -18,7 +27,7 @@ import time
 from collections import Counter
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Iterator, List, Optional, Set, Tuple
 from urllib.parse import quote
 
 import requests
@@ -27,7 +36,14 @@ import requests
 ENDPOINT = "https://metabase.wikibase.cloud/query/sparql"
 APP_NAME = "MEOW"
 DATA_SCHEMA_VERSION = 1
-DEFAULT_USER_AGENT = "MEOWHarvester/1.0 (+https://metabase.wikibase.cloud/)"
+DEFAULT_USER_AGENT = "MEOWHarvester/2.0 (+https://meow.toolforge.org/)"
+
+# Languages tried in order, for labels and descriptions and for choosing among
+# a resource's titles (P8).
+LABEL_LANGUAGES = ("mul", "en", "de", "it", "es", "pt", "sr", "bg", "pl", "sv", "pt-br", "fr")
+
+# Never wait longer than this for a retry, whatever Retry-After says.
+MAX_RETRY_DELAY = 120
 
 # instance of (P5) this Q-ID marks the top of a "used by / part of" chain
 # (P42 -> P17*) as a conference, e.g. Wikimania or GLAM Wiki.
@@ -44,6 +60,7 @@ RESOURCE_TYPES = {
     "Q22136": {"label": "Case study",          "pluralLabel": "case studies"},
     "Q25288": {"label": "Conference paper",    "pluralLabel": "conference papers"},
     "Q50361": {"label": "Conference proceedings", "pluralLabel": "conference proceedings"},
+    "Q48606": {"label": "Exercise",            "pluralLabel": "exercises"},
     "Q21996": {"label": "Fail fest",           "pluralLabel": "fail fests"},
     "Q54":    {"label": "Financial statement", "pluralLabel": "financial statements"},
     "Q25817": {"label": "Grant proposal",      "pluralLabel": "grant proposals"},
@@ -85,8 +102,31 @@ def canonical_type_id(type_id: str) -> str:
     return RESOURCE_TYPE_ALIASES.get(type_id, type_id)
 
 
-def build_query(resource_type_id: str) -> str:
-    return f"""
+# Single-valued statements, as (property, record field).
+SCALAR_PROPERTIES = (
+    ("P8",  "titleProperty"),
+    ("P1",  "wikidataId"),
+    ("P44", "courseUrl"),
+    ("P31", "commonsVideoPage"),
+    ("P22", "commonsDocumentPage"),
+    ("P59", "youtubeId"),
+    ("P45", "wikiPage"),
+    ("P11", "describedAtPage"),
+    ("P12", "describedAtUrl"),
+    ("P18", "publicationDate"),
+)
+
+# Statements pointing at other items, as (property, query variable, record
+# field). The detail queries return only the Q-IDs; their labels are looked up
+# once at the end instead of being repeated on every row.
+LINKED_PROPERTIES = (
+    ("P19", "author",      "authors"),
+    ("P21", "publisher",   "publishers"),
+    ("P20", "language",    "languages"),
+    ("P15", "mainSubject", "subjects"),
+)
+
+PREFIXES = """
 PREFIX wb: <https://metabase.wikibase.cloud/entity/>
 PREFIX wbt: <https://metabase.wikibase.cloud/prop/direct/>
 PREFIX p: <https://metabase.wikibase.cloud/prop/>
@@ -95,110 +135,183 @@ PREFIX pq: <https://metabase.wikibase.cloud/prop/qualifier/>
 PREFIX wikibase: <http://wikiba.se/ontology#>
 PREFIX bd: <http://www.bigdata.com/rdf#>
 PREFIX schema: <http://schema.org/>
-
-SELECT
-  ?resource ?resourceLabel ?resourceDescription
-  ?resourceType ?resourceTypeLabel
-  ?titleProperty
-  ?wikidataId
-  ?author ?authorLabel
-  ?courseUrl ?commonsVideoPage ?commonsDocumentPage
-  ?youtubeId
-  ?wikiPage ?describedAtPage ?describedAtUrl ?publicationDate
-  ?publisher ?publisherLabel
-  ?language ?languageLabel
-  ?mainSubject ?mainSubjectLabel
-  ?tempAuthorValue
-  ?event ?eventLabel
-WHERE {{
-  VALUES ?resourceType {{ wb:{resource_type_id} }}
-
-  ?resource wbt:P5 ?resourceType .
-
-  OPTIONAL {{ ?resource wbt:P8 ?titleProperty . }}
-  OPTIONAL {{ ?resource wbt:P1 ?wikidataId . }}
-  OPTIONAL {{ ?resource wbt:P44 ?courseUrl . }}
-  OPTIONAL {{ ?resource wbt:P31 ?commonsVideoPage . }}
-  OPTIONAL {{ ?resource wbt:P19 ?author . }}
-  OPTIONAL {{ ?resource wbt:P22 ?commonsDocumentPage . }}
-  OPTIONAL {{ ?resource wbt:P59 ?youtubeId . }}
-  OPTIONAL {{ ?resource wbt:P45 ?wikiPage . }}
-  OPTIONAL {{ ?resource wbt:P11 ?describedAtPage . }}
-  OPTIONAL {{ ?resource wbt:P12 ?describedAtUrl . }}
-  OPTIONAL {{ ?resource wbt:P18 ?publicationDate . }}
-  OPTIONAL {{ ?resource wbt:P21 ?publisher . }}
-  OPTIONAL {{ ?resource wbt:P20 ?language . }}
-  OPTIONAL {{ ?resource wbt:P15 ?mainSubject . }}
-
-  OPTIONAL {{
-    ?resource p:P38 ?tempAuthorStatement .
-    ?tempAuthorStatement ps:P38 ?tempAuthorValue .
-    ?tempAuthorStatement pq:P41 wb:P19 .
-  }}
-
-  # Event context: a resource is "used by" (P42) a conference session, which
-  # may be "part of" (P17) another item zero or more times before reaching
-  # the top-level item that is itself "instance of" (P5) a conference.
-  OPTIONAL {{
-    ?resource wbt:P42 ?usedBy .
-    ?usedBy wbt:P17* ?event .
-    ?event wbt:P5 wb:{EVENT_TYPE_ID} .
-  }}
-
-  SERVICE wikibase:label {{
-    bd:serviceParam wikibase:language "mul,en,de,it,es,pt,sr,bg,pl,sv" .
-    ?resource     rdfs:label ?resourceLabel .
-    ?resource     schema:description ?resourceDescription .
-    ?resourceType rdfs:label ?resourceTypeLabel .
-    ?publisher    rdfs:label ?publisherLabel .
-    ?author       rdfs:label ?authorLabel .
-    ?language     rdfs:label ?languageLabel .
-    ?mainSubject  rdfs:label ?mainSubjectLabel .
-    ?event        rdfs:label ?eventLabel .
-  }}
-}}
-ORDER BY LCASE(STR(?resourceLabel))
 """
 
 
-def run_sparql(
-    query: str,
-    *,
-    endpoint: str,
-    session: requests.Session,
-    timeout: int,
-    user_agent: str,
-    max_retries: int,
-) -> Dict[str, Any]:
-    """Run a SPARQL query with small, explicit retry handling."""
-    headers = {
-        "Accept": "application/sparql-results+json",
-        "User-Agent": user_agent,
-    }
+class HarvestError(RuntimeError):
+    """The harvest cannot be completed; existing data files are left alone."""
 
-    last_error: Optional[Exception] = None
 
-    for attempt in range(max_retries + 1):
-        try:
-            response = session.get(
-                endpoint,
-                params={"query": query, "format": "json"},
-                headers=headers,
-                timeout=timeout,
-            )
-            response.raise_for_status()
-            return response.json()
-        except (requests.RequestException, ValueError) as exc:
-            last_error = exc
-            if attempt >= max_retries:
-                break
-            # Gentle exponential backoff. This protects the public endpoint and
-            # makes transient network hiccups less likely to break a full harvest.
-            time.sleep(2 ** attempt)
+def log(message: str = "") -> None:
+    # Flushed so progress shows up in `toolforge jobs logs` while running.
+    print(message, flush=True)
 
-    raise RuntimeError(
-        f"SPARQL request failed after {max_retries + 1} attempt(s): {last_error}"
+
+def values_clause(variable: str, item_ids: List[str]) -> str:
+    return f"VALUES ?{variable} {{ " + " ".join(f"wb:{i}" for i in item_ids) + " }"
+
+
+def label_service(*patterns: str) -> str:
+    body = " ".join(f"{pattern} ." for pattern in patterns)
+    return (
+        "SERVICE wikibase:label { "
+        f'bd:serviceParam wikibase:language "{",".join(LABEL_LANGUAGES)}" . {body} }}'
     )
+
+
+def build_membership_query() -> str:
+    """List every resource of a configured type, with its type(s)."""
+    type_ids = list(RESOURCE_TYPES) + list(RESOURCE_TYPE_ALIASES)
+    return f"""{PREFIXES}
+SELECT ?resource ?resourceType
+WHERE {{
+  {values_clause("resourceType", type_ids)}
+  ?resource wbt:P5 ?resourceType .
+}}
+"""
+
+
+def build_detail_query(resource_ids: List[str]) -> str:
+    """
+    Fetch label, description and statements for one batch of resources.
+
+    Each property is fetched in its own UNION branch, so a row carries the
+    resource plus a single value and the row count is the *sum* of a
+    resource's values. Joining the properties as OPTIONALs instead yields
+    their cross product: a blog post translated into 21 languages has 21
+    titles x 21 wiki pages x 21 languages = 9261 rows, which once made the
+    blog post response over 100 MB.
+    """
+    resources = values_clause("resource", resource_ids)
+    scalar_vars = " ".join(f"?{field}" for _, field in SCALAR_PROPERTIES)
+    linked_vars = " ".join(f"?{var}" for _, var, _ in LINKED_PROPERTIES)
+    branches = "\n".join(
+        f"    UNION {{ ?resource wbt:{prop} ?{var} . }}"
+        for prop, var in (
+            list(SCALAR_PROPERTIES)
+            + [(prop, var) for prop, var, _ in LINKED_PROPERTIES]
+        )
+    )
+    return f"""{PREFIXES}
+SELECT
+  ?resource ?resourceLabel ?resourceDescription
+  {scalar_vars}
+  {linked_vars}
+  ?tempAuthorValue ?event
+WHERE {{
+  {resources}
+  {{
+    # One row per resource with its label and description. Labelled in a
+    # subquery so the label is not repeated on every property row.
+    {{
+      SELECT ?resource ?resourceLabel ?resourceDescription WHERE {{
+        {resources}
+        {label_service("?resource rdfs:label ?resourceLabel",
+                       "?resource schema:description ?resourceDescription")}
+      }}
+    }}
+{branches}
+    UNION {{
+      ?resource p:P38 ?tempAuthorStatement .
+      ?tempAuthorStatement ps:P38 ?tempAuthorValue .
+      ?tempAuthorStatement pq:P41 wb:P19 .
+    }}
+    # Event context: a resource is "used by" (P42) a conference session, which
+    # may be "part of" (P17) another item zero or more times before reaching
+    # the top-level item that is itself "instance of" (P5) a conference.
+    UNION {{
+      ?resource wbt:P42 ?usedBy .
+      ?usedBy wbt:P17* ?event .
+      ?event wbt:P5 wb:{EVENT_TYPE_ID} .
+    }}
+  }}
+}}
+"""
+
+
+def build_label_query(item_ids: List[str]) -> str:
+    """Fetch the display label for one batch of items."""
+    return f"""{PREFIXES}
+SELECT ?item ?itemLabel
+WHERE {{
+  {values_clause("item", item_ids)}
+  {label_service("?item rdfs:label ?itemLabel")}
+}}
+"""
+
+
+def retry_delay(response: Optional[requests.Response], attempt: int) -> float:
+    """Seconds to wait before retrying: the server's Retry-After if given."""
+    if response is not None:
+        try:
+            return min(float(response.headers.get("Retry-After", "")), MAX_RETRY_DELAY)
+        except ValueError:
+            pass
+    return float(2 ** (attempt + 1))
+
+
+class SparqlClient:
+    """Runs queries one at a time, pausing between them and backing off on errors."""
+
+    def __init__(
+        self,
+        session: requests.Session,
+        *,
+        endpoint: str,
+        timeout: int,
+        user_agent: str,
+        max_retries: int,
+        sleep: float,
+        deadline: float,
+    ) -> None:
+        self.session = session
+        self.endpoint = endpoint
+        self.timeout = timeout
+        self.max_retries = max_retries
+        self.sleep = sleep
+        self.deadline = deadline
+        self.headers = {
+            "Accept": "application/sparql-results+json",
+            "User-Agent": user_agent,
+        }
+        self.request_count = 0
+
+    def _wait(self, seconds: float) -> None:
+        if time.monotonic() + seconds > self.deadline:
+            raise HarvestError("Harvest exceeded its maximum runtime")
+        time.sleep(seconds)
+
+    def run(self, query: str) -> List[Dict[str, Any]]:
+        """Return the result rows of a SPARQL query."""
+        last_error: Optional[Exception] = None
+
+        for attempt in range(self.max_retries + 1):
+            # Pause before every request except the very first, so the
+            # endpoint never sees back-to-back queries from us.
+            if self.request_count:
+                self._wait(self.sleep)
+            self.request_count += 1
+
+            response: Optional[requests.Response] = None
+            try:
+                # POST, because a batch of Q-IDs makes the query too long for
+                # a URL.
+                response = self.session.post(
+                    self.endpoint,
+                    data={"query": query},
+                    headers=self.headers,
+                    timeout=self.timeout,
+                )
+                response.raise_for_status()
+                return response.json()["results"]["bindings"]
+            except (requests.RequestException, ValueError, KeyError) as exc:
+                last_error = exc
+                if attempt < self.max_retries:
+                    self._wait(retry_delay(response, attempt))
+
+        raise HarvestError(
+            f"SPARQL request failed after {self.max_retries + 1} attempt(s): {last_error}"
+        )
 
 
 def value(binding: Dict[str, Any], key: str) -> str:
@@ -206,29 +319,36 @@ def value(binding: Dict[str, Any], key: str) -> str:
     return binding.get(key, {}).get("value", "")
 
 
+def known_value(binding: Dict[str, Any], key: str) -> str:
+    """
+    Like value(), but empty for Wikibase 'unknown value' snaks, which arrive
+    as blank nodes (e.g. 't272913') rather than as real values.
+    """
+    if binding.get(key, {}).get("type") == "bnode":
+        return ""
+    return value(binding, key)
+
+
 def item_id_from_uri(uri: str) -> str:
     """Extract the Q-ID from a Wikibase entity URI."""
     return uri.rstrip("/").split("/")[-1] if uri else ""
 
 
-def add_unique(target: List[str], item: str) -> None:
-    """Append item to target only if it is non-empty and not already present."""
-    if item and item not in target:
-        target.append(item)
+def batches(items: List[str], size: int) -> Iterator[List[str]]:
+    for start in range(0, len(items), size):
+        yield items[start:start + size]
 
 
 def is_real_date(raw: str) -> bool:
-    """
-    Wikibase 'unknown value' snaks arrive as blank-node URIs (e.g. 't272913').
-    Return True only for genuine date strings like '+2021-01-01T00:00:00Z'.
-    """
+    """Return True only for genuine date strings like '+2021-01-01T00:00:00Z'."""
     return bool(raw) and (raw.startswith("+") or raw[:4].isdigit())
 
 
 def wikimedia_page_url(wiki_page_value: str) -> str:
     """
-    Build a meta.wikimedia.org URL from an interwiki-style P45 value such as
-    ':wmse:Projekt:GLAM 2021/Wikimedia Commons guide'.
+    Build a meta.wikimedia.org URL from an interwiki-style P45 or P11 value
+    such as ':wmse:Projekt:GLAM 2021/Wikimedia Commons guide'. Both
+    properties share the formatter URL https://meta.wikimedia.org/wiki/$1.
     """
     if not wiki_page_value:
         return ""
@@ -261,114 +381,139 @@ def get_primary_url(resource: Dict[str, Any]) -> str:
     return ""
 
 
-def parse_rows(rows: List[Dict[str, Any]], resource_type_id: str) -> List[Dict[str, Any]]:
-    """
-    Collapse flat SPARQL result rows into one dict per resource, merging
-    multi-valued properties (languages, authors, etc.) into lists.
-    """
-    by_id: Dict[str, Dict[str, Any]] = {}
-
-    for row in rows:
+def harvest_membership(client: SparqlClient) -> Dict[str, Set[str]]:
+    """Return the canonical type IDs of every resource, keyed by resource ID."""
+    types_by_resource: Dict[str, Set[str]] = {}
+    for row in client.run(build_membership_query()):
         resource_id = item_id_from_uri(value(row, "resource"))
-        if not resource_id:
+        type_id = item_id_from_uri(value(row, "resourceType"))
+        if resource_id and type_id:
+            types_by_resource.setdefault(resource_id, set()).add(canonical_type_id(type_id))
+    return types_by_resource
+
+
+def new_raw_record() -> Dict[str, Any]:
+    """An empty holder for the values harvested for one resource."""
+    record: Dict[str, Any] = {
+        "label": "",
+        "description": "",
+        "titles": set(),  # (language code, text) pairs
+        "tempAuthors": set(),
+        "eventIds": set(),
+    }
+    for _, field in SCALAR_PROPERTIES:
+        record[field] = set()
+    for _, _, field in LINKED_PROPERTIES:
+        record[field] = set()
+    return record
+
+
+def collect_rows(
+    rows: List[Dict[str, Any]],
+    raw_records: Dict[str, Dict[str, Any]],
+) -> None:
+    """Fold the rows of one detail query into the per-resource raw records."""
+    for row in rows:
+        record = raw_records.get(item_id_from_uri(value(row, "resource")))
+        if record is None:
             continue
 
-        type_id = canonical_type_id(item_id_from_uri(value(row, "resourceType")) or resource_type_id)
+        record["label"] = record["label"] or value(row, "resourceLabel")
+        record["description"] = record["description"] or value(row, "resourceDescription")
 
-        if resource_id not in by_id:
-            raw_date = value(row, "publicationDate")
-            by_id[resource_id] = {
-                "id":                  resource_id,
-                "title":               value(row, "resourceLabel") or resource_id,
-                "titleProperty":       value(row, "titleProperty"),
-                "wikidataId":          value(row, "wikidataId"),
-                "description":         value(row, "resourceDescription"),
-                "typeIds":             [type_id],
-                "publicationDate":     raw_date if is_real_date(raw_date) else "",
-                "courseUrl":           value(row, "courseUrl"),
-                "commonsVideoPage":    value(row, "commonsVideoPage"),
-                "commonsDocumentPage": value(row, "commonsDocumentPage"),
-                "youtubeId":           value(row, "youtubeId"),
-                "wikiPage":            value(row, "wikiPage"),
-                "describedAtPage":     value(row, "describedAtPage"),
-                "describedAtUrl":      value(row, "describedAtUrl"),
-                "languages":           [],
-                "subjects":            [],
-                "authors":             [],
-                "publishers":          [],
-                "tempAuthors":         [],
-                "events":              [],
-                "eventIds":            [],
-            }
-
-        resource = by_id[resource_id]
-
-        add_unique(resource["typeIds"], type_id)
-
-        # Fill in scalar fields from later rows if the first row had them empty.
-        for field, key in (
-            ("titleProperty",       "titleProperty"),
-            ("wikidataId",          "wikidataId"),
-            ("description",         "resourceDescription"),
-            ("courseUrl",           "courseUrl"),
-            ("commonsVideoPage",    "commonsVideoPage"),
-            ("commonsDocumentPage", "commonsDocumentPage"),
-            ("youtubeId",           "youtubeId"),
-            ("wikiPage",            "wikiPage"),
-            ("describedAtPage",     "describedAtPage"),
-            ("describedAtUrl",      "describedAtUrl"),
-        ):
-            if not resource.get(field):
-                resource[field] = value(row, key)
-
-        if not resource["publicationDate"]:
-            raw_date = value(row, "publicationDate")
-            if is_real_date(raw_date):
-                resource["publicationDate"] = raw_date
-
-        add_unique(resource["languages"],   value(row, "languageLabel"))
-        add_unique(resource["subjects"],    value(row, "mainSubjectLabel"))
-        add_unique(resource["authors"],     value(row, "authorLabel"))
-        add_unique(resource["publishers"],  value(row, "publisherLabel"))
-        add_unique(resource["tempAuthors"], value(row, "tempAuthorValue"))
-        add_unique(resource["events"],      value(row, "eventLabel"))
-        add_unique(resource["eventIds"],    item_id_from_uri(value(row, "event")))
-
-    for resource in by_id.values():
-        for lst in ("languages", "subjects", "publishers", "authors", "tempAuthors", "typeIds", "events", "eventIds"):
-            resource[lst].sort()
-
-        primary_url = get_primary_url(resource)
-        resource["missing"] = {
-            "title":           not bool(resource["titleProperty"]),
-            "description":     not bool(resource["description"]),
-            "mainSubject":     len(resource["subjects"]) == 0,
-            "publisher":       len(resource["publishers"]) == 0,
-            "publicationDate": not bool(resource["publicationDate"]),
-            "language":        len(resource["languages"]) == 0,
-            "externalLink":    not bool(primary_url or resource["describedAtUrl"]),
-            "author":          len(resource["authors"]) == 0 or len(resource["tempAuthors"]) > 0,
-            "event":           len(resource["events"]) == 0,
-        }
-
-    return list(by_id.values())
+        if known_value(row, "titleProperty"):
+            record["titles"].add(
+                (row["titleProperty"].get("xml:lang", ""), value(row, "titleProperty"))
+            )
+        for _, field in SCALAR_PROPERTIES:
+            if known_value(row, field):
+                record[field].add(value(row, field))
+        for _, var, field in LINKED_PROPERTIES:
+            if known_value(row, var):
+                record[field].add(item_id_from_uri(value(row, var)))
+        if known_value(row, "tempAuthorValue"):
+            record["tempAuthors"].add(value(row, "tempAuthorValue"))
+        if known_value(row, "event"):
+            record["eventIds"].add(item_id_from_uri(value(row, "event")))
 
 
-def merge_into(target: Dict[str, Any], source: Dict[str, Any]) -> None:
+def pick_title(titles: Set[Tuple[str, str]]) -> str:
     """
-    Merge a resource from a second type query into an existing record.
-    Only typeIds need merging — all other fields should already be the same.
+    Choose one title (P8) from a resource's titles: the first language in
+    LABEL_LANGUAGES that has one, otherwise the first by language code.
     """
-    for type_id in source["typeIds"]:
-        add_unique(target["typeIds"], type_id)
+    def rank(title: Tuple[str, str]) -> Tuple[int, str, str]:
+        language, text = title
+        if language in LABEL_LANGUAGES:
+            return (LABEL_LANGUAGES.index(language), language, text)
+        return (len(LABEL_LANGUAGES), language, text)
+
+    return min(titles, key=rank)[1] if titles else ""
 
 
-def build_metadata(
-    resources: List[Dict[str, Any]],
-    *,
-    endpoint: str,
-    failed_resource_types: List[str],
+def pick_first(values: Set[str]) -> str:
+    """
+    Choose one value where a single-valued property has several, so that the
+    result is the same on every run. For Diff blog posts this happens to pick
+    the original post (':diffblog:2016/…') over its translations
+    (':diffblog:de/2016/…').
+    """
+    return min(values) if values else ""
+
+
+def build_resource(
+    resource_id: str,
+    type_ids: Set[str],
+    raw: Dict[str, Any],
+    labels: Dict[str, str],
 ) -> Dict[str, Any]:
+    """Turn the raw harvested values for one resource into its output record."""
+    def linked_labels(item_ids: Set[str]) -> List[str]:
+        return sorted({labels.get(item_id, item_id) for item_id in item_ids})
+
+    resource: Dict[str, Any] = {
+        "id":                  resource_id,
+        "title":               raw["label"] or resource_id,
+        "titleProperty":       pick_title(raw["titles"]),
+        "wikidataId":          pick_first(raw["wikidataId"]),
+        "description":         raw["description"],
+        "typeIds":             sorted(
+            type_ids,
+            key=lambda type_id: RESOURCE_TYPES.get(type_id, {}).get("label", type_id),
+        ),
+        "publicationDate":     pick_first({d for d in raw["publicationDate"] if is_real_date(d)}),
+        "courseUrl":           pick_first(raw["courseUrl"]),
+        "commonsVideoPage":    pick_first(raw["commonsVideoPage"]),
+        "commonsDocumentPage": pick_first(raw["commonsDocumentPage"]),
+        "youtubeId":           pick_first(raw["youtubeId"]),
+        "wikiPage":            pick_first(raw["wikiPage"]),
+        "describedAtPage":     pick_first(raw["describedAtPage"]),
+        "describedAtUrl":      pick_first(raw["describedAtUrl"]),
+        "languages":           linked_labels(raw["languages"]),
+        "subjects":            linked_labels(raw["subjects"]),
+        "authors":             linked_labels(raw["authors"]),
+        "publishers":          linked_labels(raw["publishers"]),
+        "tempAuthors":         sorted(raw["tempAuthors"]),
+        "events":              linked_labels(raw["eventIds"]),
+        "eventIds":            sorted(raw["eventIds"]),
+    }
+
+    primary_url = get_primary_url(resource)
+    resource["missing"] = {
+        "title":           not bool(resource["titleProperty"]),
+        "description":     not bool(resource["description"]),
+        "mainSubject":     len(resource["subjects"]) == 0,
+        "publisher":       len(resource["publishers"]) == 0,
+        "publicationDate": not bool(resource["publicationDate"]),
+        "language":        len(resource["languages"]) == 0,
+        "externalLink":    not bool(primary_url or resource["describedAtUrl"]),
+        "author":          len(resource["authors"]) == 0 or len(resource["tempAuthors"]) > 0,
+        "event":           len(resource["events"]) == 0,
+    }
+    return resource
+
+
+def build_metadata(resources: List[Dict[str, Any]], *, endpoint: str) -> Dict[str, Any]:
     type_counts:      Counter = Counter()
     language_counts:  Counter = Counter()
     subject_counts:   Counter = Counter()
@@ -404,7 +549,9 @@ def build_metadata(
         "endpoint":      endpoint,
         "totalResources": len(resources),
         "configuredResourceTypes": len(RESOURCE_TYPES),
-        "failedResourceTypes": failed_resource_types,
+        # Always empty: a harvest is now written only if every query
+        # succeeded. Kept because the front-end reads it.
+        "failedResourceTypes": [],
         "authors":        dict(author_counts.most_common()),
         "resourceTypes":  resource_type_metadata,
         "languages":      dict(language_counts.most_common()),
@@ -415,30 +562,69 @@ def build_metadata(
     }
 
 
-def harvest_resource_type(
-    resource_type_id: str,
+def previous_resource_count(metadata_path: Path) -> Optional[int]:
+    """Return totalResources from the last successful harvest, if there is one."""
+    try:
+        count = json.loads(metadata_path.read_text(encoding="utf-8")).get("totalResources")
+    except (OSError, ValueError, AttributeError):
+        return None
+    return count if isinstance(count, int) else None
+
+
+def harvest(
+    client: SparqlClient,
     *,
-    endpoint: str,
-    session: requests.Session,
-    timeout: int,
-    user_agent: str,
-    max_retries: int,
+    batch_size: int,
+    previous_count: Optional[int],
+    max_drop: float,
 ) -> List[Dict[str, Any]]:
-    """Harvest and normalise one configured resource type."""
-    label = RESOURCE_TYPES.get(canonical_type_id(resource_type_id), {}).get("label", resource_type_id)
-    print(f"Harvesting {label} ({resource_type_id})...")
+    """Run the full harvest and return the sorted output records."""
+    log("Listing resources...")
+    types_by_resource = harvest_membership(client)
+    resource_ids = sorted(types_by_resource, key=lambda qid: int(qid[1:]))
+    log(f"  {len(resource_ids)} resources")
 
-    rows = run_sparql(
-        build_query(resource_type_id),
-        endpoint=endpoint,
-        session=session,
-        timeout=timeout,
-        user_agent=user_agent,
-        max_retries=max_retries,
-    ).get("results", {}).get("bindings", [])
-    resources = parse_rows(rows, resource_type_id)
+    if not resource_ids:
+        raise HarvestError("The endpoint returned no resources")
+    if previous_count and len(resource_ids) < previous_count * (1 - max_drop):
+        raise HarvestError(
+            f"Found {len(resource_ids)} resources, down from {previous_count} in the "
+            f"previous harvest. Assuming a problem with the endpoint; re-run with "
+            f"--max-drop 1 if the drop is real."
+        )
 
-    print(f"  {len(rows)} rows → {len(resources)} resources")
+    raw_records = {resource_id: new_raw_record() for resource_id in resource_ids}
+    batch_count = -(-len(resource_ids) // batch_size)
+    for number, batch in enumerate(batches(resource_ids, batch_size), start=1):
+        rows = client.run(build_detail_query(batch))
+        collect_rows(rows, raw_records)
+        log(f"Details: batch {number}/{batch_count} ({len(rows)} rows)")
+
+    linked_ids = sorted(
+        {
+            item_id
+            for raw in raw_records.values()
+            for field in [field for _, _, field in LINKED_PROPERTIES] + ["eventIds"]
+            for item_id in raw[field]
+        },
+        key=lambda qid: int(qid[1:]),
+    )
+    log(f"Fetching labels for {len(linked_ids)} linked items...")
+    labels: Dict[str, str] = {}
+    for batch in batches(linked_ids, batch_size):
+        for row in client.run(build_label_query(batch)):
+            labels[item_id_from_uri(value(row, "item"))] = value(row, "itemLabel")
+
+    resources = [
+        build_resource(resource_id, types_by_resource[resource_id], raw_records[resource_id], labels)
+        for resource_id in resource_ids
+    ]
+    resources.sort(
+        key=lambda r: (
+            RESOURCE_TYPES.get(r["typeIds"][0], {}).get("label", r["typeIds"][0]),
+            (r.get("title") or "").lower(),
+        ),
+    )
     return resources
 
 
@@ -464,6 +650,10 @@ def main() -> int:
         help="Seconds to wait between SPARQL queries (default: 0.5)",
     )
     parser.add_argument(
+        "--batch-size", type=int, default=500,
+        help="Number of items to fetch per SPARQL query (default: 500)",
+    )
+    parser.add_argument(
         "--endpoint", default=ENDPOINT,
         help="SPARQL endpoint URL (default: Metabase Wikibase Cloud)",
     )
@@ -476,81 +666,66 @@ def main() -> int:
         help="Retry failed SPARQL requests this many times (default: 2)",
     )
     parser.add_argument(
+        "--max-runtime", type=int, default=900,
+        help="Give up if the harvest takes longer than this, in seconds (default: 900)",
+    )
+    parser.add_argument(
+        "--max-drop", type=float, default=0.2,
+        help="Abort if the number of resources fell by more than this fraction "
+             "since the previous harvest (default: 0.2; 1 disables the check)",
+    )
+    parser.add_argument(
         "--user-agent", default=DEFAULT_USER_AGENT,
         help="HTTP User-Agent header sent to the SPARQL endpoint",
     )
     parser.add_argument(
         "--fail-on-error", action="store_true",
-        help="Exit with a non-zero status if any resource type fails",
+        help="No longer needed: a failed harvest always exits non-zero and "
+             "leaves the existing files untouched. Accepted for compatibility.",
     )
     parser.add_argument(
         "--pretty", action="store_true",
         help="Indent JSON output (larger file, easier to read)",
     )
     args = parser.parse_args()
+    if args.batch_size < 1:
+        parser.error("--batch-size must be at least 1")
 
     output_dir = Path(args.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
     indent = 2 if args.pretty else None
-
-    all_resources: Dict[str, Dict[str, Any]] = {}
-    failed_resource_types: List[str] = []
-
-    with requests.Session() as session:
-        for resource_type_id in list(RESOURCE_TYPES) + list(RESOURCE_TYPE_ALIASES):
-            try:
-                for resource in harvest_resource_type(
-                    resource_type_id,
-                    endpoint=args.endpoint,
-                    session=session,
-                    timeout=args.timeout,
-                    user_agent=args.user_agent,
-                    max_retries=args.max_retries,
-                ):
-                    rid = resource["id"]
-                    if rid in all_resources:
-                        # Same resource appeared under a second type — merge the
-                        # new typeId rather than overwriting the existing record.
-                        merge_into(all_resources[rid], resource)
-                    else:
-                        all_resources[rid] = resource
-                time.sleep(args.sleep)
-            except Exception as e:
-                failed_resource_types.append(resource_type_id)
-                print(f"Error for {resource_type_id}: {e}", file=sys.stderr)
-
-    for resource in all_resources.values():
-        resource["typeIds"].sort(
-            key=lambda type_id: RESOURCE_TYPES.get(type_id, {}).get("label", type_id)
-        )
-
-    resources = sorted(
-        all_resources.values(),
-        key=lambda r: (
-            RESOURCE_TYPES.get(r["typeIds"][0], {}).get("label", r["typeIds"][0]),
-            (r.get("title") or "").lower(),
-        ),
-    )
-
-    metadata = build_metadata(
-        resources,
-        endpoint=args.endpoint,
-        failed_resource_types=failed_resource_types,
-    )
-
     resources_path = output_dir / "resources.json"
     metadata_path  = output_dir / "metadata.json"
+
+    try:
+        with requests.Session() as session:
+            client = SparqlClient(
+                session,
+                endpoint=args.endpoint,
+                timeout=args.timeout,
+                user_agent=args.user_agent,
+                max_retries=args.max_retries,
+                sleep=args.sleep,
+                deadline=time.monotonic() + args.max_runtime,
+            )
+            resources = harvest(
+                client,
+                batch_size=args.batch_size,
+                previous_count=previous_resource_count(metadata_path),
+                max_drop=args.max_drop,
+            )
+    except HarvestError as exc:
+        print(f"Harvest failed, keeping existing data files: {exc}", file=sys.stderr)
+        return 1
+
+    metadata = build_metadata(resources, endpoint=args.endpoint)
     atomic_write_json(resources_path, resources, indent)
     atomic_write_json(metadata_path,  metadata,  indent)
 
-    print()
-    print(f"Wrote {len(resources)} resources to {resources_path}")
-    print(f"Wrote metadata to {metadata_path}")
-    print(f"Generated at {metadata['generatedAt']}")
-    if failed_resource_types:
-        print("Failed resource types: " + ", ".join(failed_resource_types), file=sys.stderr)
-        if args.fail_on_error:
-            return 1
+    log()
+    log(f"Wrote {len(resources)} resources to {resources_path}")
+    log(f"Wrote metadata to {metadata_path}")
+    log(f"Generated at {metadata['generatedAt']} after {client.request_count} SPARQL requests")
     return 0
 
 
