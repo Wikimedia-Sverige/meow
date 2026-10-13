@@ -22,6 +22,7 @@ MEOW helps users discover educational resources by allowing them to:
 - filter by publication year
 - filter by publisher
 - filter by author
+- filter by collection, such as a blog, newsletter or podcast
 - browse and filter by keywords
 - identify resources with missing metadata
 - export filtered results as CSV
